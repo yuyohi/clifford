@@ -1,4 +1,4 @@
-from clifford import simulator_chp
+from clifford.simulator import simulator_chp
 import numpy as np
 
 
