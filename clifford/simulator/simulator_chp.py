@@ -1,6 +1,8 @@
 import numpy as np
 from numpy import random
 
+from icecream import ic
+
 
 class Simulator:
     def __init__(self, qubit_num: int, seed=0):
@@ -19,8 +21,8 @@ class Simulator:
         """
         # rを計算
         self._stabilizer_tableau[:, -1] ^= self._stabilizer_tableau[:, a] \
-                                           & self._stabilizer_tableau[:, self._qubit_num + b] \
-                                           & (self._stabilizer_tableau[:, b]
+                                           * self._stabilizer_tableau[:, self._qubit_num + b] \
+                                           * (self._stabilizer_tableau[:, b]
                                               ^ self._stabilizer_tableau[:, self._qubit_num + a] ^ 1)
 
         # xを計算
@@ -35,8 +37,8 @@ class Simulator:
             a: target bit
 
         """
-        self._stabilizer_tableau[:, -1] ^= self._stabilizer_tableau[:, a] \
-                                          & self._stabilizer_tableau[:, self._qubit_num + a]
+        self._stabilizer_tableau[:, -1] \
+            ^= self._stabilizer_tableau[:, a] * self._stabilizer_tableau[:, self._qubit_num + a]
 
         self._stabilizer_tableau[:, a], self._stabilizer_tableau[:, self._qubit_num + a] \
             = self._stabilizer_tableau[:, self._qubit_num + a], self._stabilizer_tableau[:, a].copy()
@@ -48,8 +50,8 @@ class Simulator:
             a: target bit
 
         """
-        self.stabilizer_tableau[:, -1] ^= self._stabilizer_tableau[:, a] \
-                                          & self._stabilizer_tableau[:, self._qubit_num + a]
+        self.stabilizer_tableau[:, -1] \
+            ^= self._stabilizer_tableau[:, a] * self._stabilizer_tableau[:, self._qubit_num + a]
 
         self._stabilizer_tableau[:, self._qubit_num + a] ^= self.stabilizer_tableau[:, a]
 
@@ -95,6 +97,8 @@ class Simulator:
         elif checker % 4 == 0:
             self._stabilizer_tableau[h, -1] = 0
         else:
+            ic(checker)
+            ic(g_sum)
             raise Exception("error")
 
         self._stabilizer_tableau[h, :-1] ^= self._stabilizer_tableau[i, :-1]
@@ -126,7 +130,7 @@ class Simulator:
         # 一つでもXpa = 1のとき、結果はランダム
         if outcome_is_random:
             # 最初のp以外を置換
-            for i in range(1, len(p)):
+            for i in p[1:]:
                 self._row_sum(i, p[0])
             # (p[0] - qubit_num) 行目をp[0]行目に置換
             self._stabilizer_tableau[p[0] - self._qubit_num, :] = self._stabilizer_tableau[p[0], :]

@@ -1,7 +1,10 @@
 from numpy import random
 import networkx as nx
+import retworkx as rx
 
 from clifford.simulator import simulator_chp
+
+from icecream import ic
 
 
 class RotatedSurfaceCode:
@@ -11,8 +14,6 @@ class RotatedSurfaceCode:
             raise Exception("distance must be odd number")
 
         self._p = p
-
-        self._code = simulator_chp.Simulator(distance ** 2 * 2 - 1, seed=seed)
 
         # measurement qubit の生成
         self._measurement_qubit = {"Z": [], "X": []}
@@ -35,6 +36,17 @@ class RotatedSurfaceCode:
                 self._qubit_network.add_edge(u, v)
             if (v := (u[0] - 1, u[1] + 1)) in self._qubit_network.nodes():
                 self._qubit_network.add_edge(u, v)
+
+        # decode用のグラフ (verticesがstabilizerで、edgeがdata qubit)
+        self._stabilizer_graph = {"Z": nx.Graph(), "X": nx.Graph()}
+        self._stabilizer_graph["Z"].add_nodes_from(self._measurement_qubit["Z"])
+        self._stabilizer_graph["X"].add_nodes_from(self._measurement_qubit["X"])
+        for u in self._stabilizer_graph["Z"].nodes():
+
+
+        # シミュレーション用
+        self._sim = simulator_chp.Simulator(distance ** 2 * 2 - 1, seed=seed)
+        self._coord_to_sim = {coord: n for n, coord in enumerate(self._qubit_network.nodes())}
 
     def _gen_measurement_qubit(self):
         """
@@ -69,4 +81,56 @@ class RotatedSurfaceCode:
 
             qubit_is_Z = not qubit_is_Z
 
+    def syndrome_measurement(self, round=1) -> dict[str, rx.PyGraph]:
+        x_order = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+        z_order = [(1, 1), (-1, 1), (1, -1), (-1, -1)]
 
+        error_map = {"X": rx.PyGraph(), "Z": rx.PyGraph()}
+        detection_point_X = []
+        detection_point_Z = []
+
+        for n in range(round):
+            # xスタビライザーにHゲートを作用させる
+            for x_stab in self._measurement_qubit["X"]:
+                self._sim.h(self._coord_to_sim[x_stab])
+
+            # CNOT
+            for i in range(4):
+                for z_stab in self._measurement_qubit["Z"]:  # Zスタビライザーについて
+                    data_bit_coord = (z_stab[0] + z_order[i][0], z_stab[1] + z_order[i][1])
+                    if data_bit_coord not in self._coord_to_sim:  # data bitがない場合
+                        continue
+                    self._sim.cx(self._coord_to_sim[data_bit_coord], self._coord_to_sim[z_stab])
+
+                for x_stab in self._measurement_qubit["X"]:  # Xスタビライザーについて
+                    data_bit_coord = (x_stab[0] + x_order[i][0], x_stab[1] + x_order[i][1])
+                    if data_bit_coord not in self._coord_to_sim:  # data bitがない場合
+                        continue
+                    self._sim.cx(self._coord_to_sim[x_stab], self._coord_to_sim[data_bit_coord])
+
+            # 再びxスタビライザーにHゲートを作用させる
+            for x_stab in self._measurement_qubit["X"]:
+                self._sim.h(self._coord_to_sim[x_stab])
+
+            # measurement
+            measurement_X = {coord: self._sim.measurement(self._coord_to_sim[coord]) for coord in
+                             self._measurement_qubit["X"]}
+            measurement_Z = {coord: self._sim.measurement(self._coord_to_sim[coord]) for coord in
+                             self._measurement_qubit["Z"]}
+            print(self._measurement_qubit["Z"])
+
+            detection_point_X = list(map(lambda item: item[0] + (n,),
+                                         filter(lambda item: item[1] == 1, measurement_X.items())))
+            detection_point_Z = list(map(lambda item: item[0] + (n,),
+                                         filter(lambda item: item[1] == 1, measurement_Z.items())))
+
+        if n == 0:
+            error_map["X"].add_nodes_from(detection_point_X)
+            error_map["Z"].add_nodes_from(detection_point_Z)
+        else:
+            pass
+
+
+
+
+        return error_map

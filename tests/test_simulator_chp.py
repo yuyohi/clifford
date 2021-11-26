@@ -1,6 +1,8 @@
 from clifford.simulator import simulator_chp
 import numpy as np
 
+from icecream import ic
+
 
 def test_simulator():
     test_sim = simulator_chp.Simulator(10)
@@ -66,3 +68,22 @@ def test_make_bell_state():
 
     result = [sim.measurement(0), sim.measurement(1)]
     print(result)
+
+
+def test_surface_code():
+    sim = simulator_chp.Simulator(7, seed=32)
+    sim.h(2)
+    sim.cx(1, 0)
+    sim.cx(6, 0)
+    sim.cx(3, 4)
+    sim.cx(5, 4)
+    sim.cx(2, 1)
+    sim.cx(2, 6)
+    sim.cx(2, 3)
+    sim.cx(2, 5)
+    sim.h(2)
+    z = (sim.measurement(0), sim.measurement(4))
+    x = sim.measurement(2)
+    ic()
+    ic([sim.measurement(1), sim.measurement(3), sim.measurement(5), sim.measurement(6)])
+    ic(z, x)
