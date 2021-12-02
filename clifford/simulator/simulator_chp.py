@@ -97,8 +97,6 @@ class Simulator:
         elif checker % 4 == 0:
             self._stabilizer_tableau[h, -1] = 0
         else:
-            ic(checker)
-            ic(g_sum)
             raise Exception("error")
 
         self._stabilizer_tableau[h, :-1] ^= self._stabilizer_tableau[i, :-1]

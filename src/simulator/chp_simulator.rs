@@ -1,19 +1,20 @@
 use ndarray::*;
-use rand::SeedableRng;
+use rand;
+use rand::Rng;
 
-pub struct Simulator<T: SeedableRng> {
+pub struct Simulator {
     qubit_num: usize,
     stabilizer_tableau: Array2<u8>,
-    rng: T,
+    rng: rand::rngs::StdRng,
 }
 
-impl<T: SeedableRng> Simulator<T> {
-    pub fn new(qubit_num: usize, rng: T) -> Self {
+impl Simulator {
+    pub fn new(qubit_num: usize, rng: rand::rngs::StdRng) -> Self {
         let size = qubit_num * 2;
         let stabilizer_tableau: Array2<u8> =
             concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
 
-        Simulator::<T> {
+        Simulator {
             qubit_num,
             stabilizer_tableau,
             rng,
@@ -113,14 +114,16 @@ impl<T: SeedableRng> Simulator<T> {
         let checker = 2 * self.stabilizer_tableau[[h, self.qubit_num * 2]]
             + 2 * self.stabilizer_tableau[[i, self.qubit_num * 2]]
             + g_sum;
-        
+
         match checker % 4 {
             2 => self.stabilizer_tableau[[h, self.qubit_num * 2]] = 1,
             0 => self.stabilizer_tableau[[h, self.qubit_num * 2]] = 0,
             _ => panic!("Error at row_sum"),
         }
 
-        let (mut row_h, row_i) = self.stabilizer_tableau.multi_slice_mut((s![h, ..self.qubit_num * 2], s![i, ..self.qubit_num * 2]));
+        let (mut row_h, row_i) = self
+            .stabilizer_tableau
+            .multi_slice_mut((s![h, ..self.qubit_num * 2], s![i, ..self.qubit_num * 2]));
 
         row_h ^= &row_i;
     }
@@ -137,24 +140,71 @@ impl<T: SeedableRng> Simulator<T> {
             );
         }
 
-        let checker = 2 * temp[temp.len() - 1] + 2 * self.stabilizer_tableau[[i, self.qubit_num * 2]] + g_sum;
-        
+        let checker = 2 * temp[self.qubit_num * 2]
+            + 2 * self.stabilizer_tableau[[i, self.qubit_num * 2]]
+            + g_sum;
+
         match checker % 4 {
-            2 => temp[temp.len() - 1] = 1,
-            0 => temp[temp.len() - 1] = 0,
+            2 => temp[self.qubit_num * 2] = 1,
+            0 => temp[self.qubit_num * 2] = 0,
             _ => panic!("Error at row_sum"),
         }
 
         let row_i = self.stabilizer_tableau.slice(s![i, ..self.qubit_num * 2]);
-        
+
         *temp += &row_i;
     }
 
-    /// measutement
-    pub fn measurement(self, a: usize) {
-        //let outcome_is_random = false;
-        //let mut p: Vec<u32> =  Vec::new();
+    /// measurement
+    pub fn measurement(&mut self, a: usize) -> u8 {
+        let p = self
+            .stabilizer_tableau
+            .slice(s![self.qubit_num..self.qubit_num * 2, a])
+            .iter()
+            .enumerate()
+            .filter(|(_, &x)| x == 1)
+            .map(|(i, _)| i)
+            .collect::<Vec<usize>>();
 
-        
+        // 一つでもXpa = 1のとき、結果はランダム
+        if p.len() != 0 {
+            p.iter().skip(1).for_each(|&i| self.row_sum(i, p[0]));
+
+            // (p[0] - qubit_num) 行目をp[0]行目に置換
+            let (mut q_n, mut q) = self
+                .stabilizer_tableau
+                .multi_slice_mut((s![p[0] - self.qubit_num, ..], s![p[0], ..]));
+
+            q_n.assign(&q);
+            for i in q.iter_mut() {
+                *i = 0;
+            }
+
+            // rpを1/2でセットし、これが観測結果となる
+            if self.rng.gen::<f32>() < 0.5 {
+                self.stabilizer_tableau[[p[0], self.qubit_num * 2]] = 1;
+            } else {
+                self.stabilizer_tableau[[p[0], self.qubit_num * 2]] = 0;
+            }
+
+            return self.stabilizer_tableau[[p[0], self.qubit_num * 2]];
+        } else {
+            // 測定結果が決定的のとき
+            let mut temp: Array1<u8> = Array::zeros(self.qubit_num * 2 + 1);
+            self.stabilizer_tableau
+                .slice(s![..self.qubit_num, a])
+                .iter()
+                .enumerate()
+                .filter(|(_, &i)| i == 1)
+                .for_each(|(i, _)| self.row_sum_temp(i + self.qubit_num, &mut temp));
+
+            return temp[self.qubit_num * 2];
+        }
+    }
+
+    /// Reset stabilizer tableau
+    pub fn reset_tableau(&mut self) {
+        let size = self.qubit_num * 2;
+        self.stabilizer_tableau = concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
     }
 }
