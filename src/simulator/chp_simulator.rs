@@ -1,100 +1,32 @@
+use super::Simulator;
 use ndarray::*;
-use rand;
-use rand::Rng;
+use rand::{Rng, SeedableRng, rngs::SmallRng};
 
-pub struct Simulator {
+pub struct CHPSimulator {
     qubit_num: usize,
     stabilizer_tableau: Array2<u8>,
-    rng: rand::rngs::StdRng,
+    rng: rand::rngs::SmallRng,
 }
 
-impl Simulator {
-    pub fn new(qubit_num: usize, rng: rand::rngs::StdRng) -> Self {
+impl CHPSimulator {
+    pub fn new(qubit_num: usize, rng: rand::rngs::SmallRng) -> Self {
         let size = qubit_num * 2;
         let stabilizer_tableau: Array2<u8> =
             concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
 
-        Simulator {
+        CHPSimulator {
             qubit_num,
             stabilizer_tableau,
             rng,
         }
     }
 
-    /// CNOT gate
-    pub fn cx(&mut self, a: usize, b: usize) {
-        let (mut r, x_a, mut x_b, mut z_a, z_b) = self.stabilizer_tableau.multi_slice_mut((
-            s![.., -1],
-            s![.., a],
-            s![.., b],
-            s![.., self.qubit_num + a],
-            s![.., self.qubit_num + b],
-        ));
-
-        // rを計算
-        let buf = &x_a & &z_b & (&x_b ^ &z_a ^ 1);
-        r ^= &buf;
-
-        // xを計算
-        x_b ^= &x_a;
-
-        // zを計算
-        z_a ^= &z_b;
-    }
-
-    /// Hadamard generate
-    pub fn h(&mut self, a: usize) {
-        let (mut r, mut x_a, mut z_a) = self.stabilizer_tableau.multi_slice_mut((
-            s![.., -1],
-            s![.., a],
-            s![.., self.qubit_num + a],
-        ));
-
-        let buf = &x_a & &z_a;
-        r ^= &buf;
-
-        // XとZを入れ替える
-        Zip::from(x_a).and(z_a).for_each(::std::mem::swap);
-    }
-
-    /// S gate (Phase gate)
-    pub fn s(&mut self, a: usize) {
-        let (mut r, x_a, mut z_a) = self.stabilizer_tableau.multi_slice_mut((
-            s![.., -1],
-            s![.., a],
-            s![.., self.qubit_num + a],
-        ));
-
-        let buf = &x_a & &z_a;
-        r ^= &buf;
-
-        z_a ^= &x_a;
-    }
-
-    ///X gate
-    pub fn x(&mut self, a: usize) {
-        let (mut r, z_a) = self
-            .stabilizer_tableau
-            .multi_slice_mut((s![.., -1], s![.., self.qubit_num + a]));
-
-        r ^= &z_a;
-    }
-
-    /// Z gate
-    pub fn z(&mut self, a: usize) {
-        let (mut r, x_a) = self
-            .stabilizer_tableau
-            .multi_slice_mut((s![.., -1], s![.., a]));
-
-        r ^= &x_a;
-    }
-
-    fn g(&self, x1: u8, z1: u8, x2: u8, z2: u8) -> u8 {
+    fn g(&self, x1: u8, z1: u8, x2: u8, z2: u8) -> i8 {
         match (x1, z1, x2, z2) {
             (0, 0, _, _) => 0,
-            (1, 1, _, _) => z2 - x2,
-            (1, 0, _, _) => z2 * (2 * x2 - 1),
-            (0, 1, _, _) => x2 * (1 - 2 * z2),
+            (1, 1, _, _) => (z2 - x2) as i8,
+            (1, 0, _, _) => (z2 * (2 * x2 - 1)) as i8,
+            (0, 1, _, _) => x2 as i8 * (1 - 2 * z2 as i8),
             _ => panic!("Tableau parameters must be 0 or 1"),
         }
     }
@@ -111,8 +43,8 @@ impl Simulator {
             );
         }
 
-        let checker = 2 * self.stabilizer_tableau[[h, self.qubit_num * 2]]
-            + 2 * self.stabilizer_tableau[[i, self.qubit_num * 2]]
+        let checker = 2 * self.stabilizer_tableau[[h, self.qubit_num * 2]] as i8
+            + 2 * self.stabilizer_tableau[[i, self.qubit_num * 2]] as i8
             + g_sum;
 
         match checker % 4 {
@@ -140,8 +72,8 @@ impl Simulator {
             );
         }
 
-        let checker = 2 * temp[self.qubit_num * 2]
-            + 2 * self.stabilizer_tableau[[i, self.qubit_num * 2]]
+        let checker = 2 * temp[self.qubit_num * 2] as i8
+            + 2 * self.stabilizer_tableau[[i, self.qubit_num * 2]] as i8
             + g_sum;
 
         match checker % 4 {
@@ -154,16 +86,86 @@ impl Simulator {
 
         *temp += &row_i;
     }
+}
+
+impl Simulator for CHPSimulator {
+    /// CNOT gate
+    fn cx(&mut self, a: usize, b: usize) {
+        let (mut r, x_a, mut x_b, mut z_a, z_b) = self.stabilizer_tableau.multi_slice_mut((
+            s![.., -1],
+            s![.., a],
+            s![.., b],
+            s![.., self.qubit_num + a],
+            s![.., self.qubit_num + b],
+        ));
+
+        // rを計算
+        let buf = &x_a & &z_b & (&x_b ^ &z_a ^ 1);
+        r ^= &buf;
+
+        // xを計算
+        x_b ^= &x_a;
+
+        // zを計算
+        z_a ^= &z_b;
+    }
+
+    /// Hadamard gate
+    fn h(&mut self, a: usize) {
+        let (mut r, x_a, z_a) = self.stabilizer_tableau.multi_slice_mut((
+            s![.., -1],
+            s![.., a],
+            s![.., self.qubit_num + a],
+        ));
+
+        let buf = &x_a & &z_a;
+        r ^= &buf;
+
+        // XとZを入れ替える
+        Zip::from(x_a).and(z_a).for_each(::std::mem::swap);
+    }
+
+    /// S gate (Phase gate)
+    fn s(&mut self, a: usize) {
+        let (mut r, x_a, mut z_a) = self.stabilizer_tableau.multi_slice_mut((
+            s![.., -1],
+            s![.., a],
+            s![.., self.qubit_num + a],
+        ));
+
+        let buf = &x_a & &z_a;
+        r ^= &buf;
+
+        z_a ^= &x_a;
+    }
+
+    ///X gate
+    fn x(&mut self, a: usize) {
+        let (mut r, z_a) = self
+            .stabilizer_tableau
+            .multi_slice_mut((s![.., -1], s![.., self.qubit_num + a]));
+
+        r ^= &z_a;
+    }
+
+    /// Z gate
+    fn z(&mut self, a: usize) {
+        let (mut r, x_a) = self
+            .stabilizer_tableau
+            .multi_slice_mut((s![.., -1], s![.., a]));
+
+        r ^= &x_a;
+    }
 
     /// measurement
-    pub fn measurement(&mut self, a: usize) -> u8 {
+    fn measurement(&mut self, a: usize) -> u8 {
         let p = self
             .stabilizer_tableau
             .slice(s![self.qubit_num..self.qubit_num * 2, a])
             .iter()
             .enumerate()
             .filter(|(_, &x)| x == 1)
-            .map(|(i, _)| i)
+            .map(|(i, _)| i + self.qubit_num)
             .collect::<Vec<usize>>();
 
         // 一つでもXpa = 1のとき、結果はランダム
@@ -191,6 +193,8 @@ impl Simulator {
         } else {
             // 測定結果が決定的のとき
             let mut temp: Array1<u8> = Array::zeros(self.qubit_num * 2 + 1);
+            dbg!(&temp);
+            dbg!(self.stabilizer_tableau.slice(s![..self.qubit_num, a]));
             self.stabilizer_tableau
                 .slice(s![..self.qubit_num, a])
                 .iter()
@@ -203,7 +207,7 @@ impl Simulator {
     }
 
     /// Reset stabilizer tableau
-    pub fn reset_tableau(&mut self) {
+    fn reset(&mut self) {
         let size = self.qubit_num * 2;
         self.stabilizer_tableau = concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
     }

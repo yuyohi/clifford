@@ -41,8 +41,7 @@ class RotatedSurfaceCode:
         self._stabilizer_graph = {"Z": nx.Graph(), "X": nx.Graph()}
         self._stabilizer_graph["Z"].add_nodes_from(self._measurement_qubit["Z"])
         self._stabilizer_graph["X"].add_nodes_from(self._measurement_qubit["X"])
-        for u in self._stabilizer_graph["Z"].nodes():
-
+        # for u in self._stabilizer_graph["Z"].nodes():
 
         # シミュレーション用
         self._sim = simulator_chp.Simulator(distance ** 2 * 2 - 1, seed=seed)
