@@ -1,7 +1,8 @@
+
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use std::collections::HashMap;
 
-use crate::simulator::{self, Simulator, SimulatorWrapper};
+use crate::simulator::{self, SimulatorExternal, SimulatorWrapper};
 
 pub struct QubitNetwork {
     network: HashMap<(i32, i32), Vec<(i32, i32)>>,
@@ -108,12 +109,12 @@ impl QubitNetwork {
         p.clone()
     }
 
-    /// ゲート操作
+    /// ゲート操作を追加する
     /// CNOT gate
     pub fn cx(&mut self, a: (i32, i32), b: (i32, i32)) {
         debug_assert!(self.connection_error_map.contains_key(&(a, b)));
 
-        self.sim.cx(
+        self.sim.add_cx(
             *self.index_to_sim.get(&a).expect("index does not exist"),
             *self.index_to_sim.get(&b).expect("index does not exist"),
         );
@@ -122,30 +123,35 @@ impl QubitNetwork {
     /// H gate
     pub fn h(&mut self, a: (i32, i32)) {
         self.sim
-            .h(*self.index_to_sim.get(&a).expect("index does not exist"));
+            .add_h(*self.index_to_sim.get(&a).expect("index does not exist"));
     }
 
     /// S gate
     pub fn s(&mut self, a: (i32, i32)) {
         self.sim
-            .s(*self.index_to_sim.get(&a).expect("index does not exist"));
+            .add_s(*self.index_to_sim.get(&a).expect("index does not exist"));
     }
 
     /// x gate
     pub fn x(&mut self, a: (i32, i32)) {
         self.sim
-            .x(*self.index_to_sim.get(&a).expect("index does not exist"));
+            .add_x(*self.index_to_sim.get(&a).expect("index does not exist"));
     }
 
     /// z gate
     pub fn z(&mut self, a: (i32, i32)) {
         self.sim
-            .z(*self.index_to_sim.get(&a).expect("index does not exist"));
+            .add_z(*self.index_to_sim.get(&a).expect("index does not exist"));
     }
 
     /// measurement
-    pub fn measurement(&mut self, a: (i32, i32)) -> u8 {
+    pub fn measurement(&mut self, a: (i32, i32), result: Rc<Cell<u8>>) {
         self.sim
-            .measurement(*self.index_to_sim.get(&a).expect("index does not exist"))
+            .add_measurement(*self.index_to_sim.get(&a).expect("index does not exist"), result);
+    }
+
+    /// 指定された座標がネットワークに存在するかを判定する
+    pub fn check_contains(&self, a: (i32, i32)) -> bool {
+        self.network.contains_key(&a)
     }
 }

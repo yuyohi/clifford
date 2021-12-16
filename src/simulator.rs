@@ -2,7 +2,38 @@ use self::chp_simulator::CHPSimulator;
 
 pub mod chp_simulator;
 
-pub trait Simulator {
+/// シミュレータの外部からもアクセスできるオペレーション
+pub trait SimulatorExternal {
+    /// add CNOT gate
+    fn add_cx(&mut self, a: usize, b: usize);
+
+    /// add Hadamard gate
+    fn add_h(&mut self, a: usize);
+
+    /// add S gate (Phase gate)
+    fn add_s(&mut self, a: usize);
+
+    /// add X gate
+    fn add_x(&mut self, a: usize);
+
+    /// add Z gate
+    fn add_z(&mut self, a: usize);
+
+    /// add measurement
+    fn add_measurement(&mut self, a: usize, result: &mut u8);
+
+    // add measure as once
+    // fn add_measurement_at_once(&mut self, a: Vec<usize>, register: &mut u8);
+
+    /// add Reset stabilizer tableau
+    fn reset(&mut self);
+
+    /// add run circuit
+    fn run(&mut self);
+}
+
+/// シミュレータの内部からのみアクセスできるオペレーション
+pub trait SimulatorInternal {
     /// CNOT gate
     fn cx(&mut self, a: usize, b: usize);
 
@@ -19,50 +50,50 @@ pub trait Simulator {
     fn z(&mut self, a: usize);
 
     /// measurement
-    fn measurement(&mut self, a: usize) -> u8;
+    fn measurement(&mut self, a: usize, result: &mut u8);
 
-    /// Reset stabilizer tableau
-    fn reset(&mut self);
+    // measure as once
+    //fn measurement_at_once(&mut self, a: Vec<usize>, register: &mut u8);
 }
 
 pub enum SimulatorWrapper {
     CHPSimulator(CHPSimulator),
 }
 
-impl Simulator for SimulatorWrapper {
-    fn cx(&mut self, a: usize, b: usize) {
+impl SimulatorExternal for SimulatorWrapper {
+    fn add_cx(&mut self, a: usize, b: usize) {
         match *self {
-            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.cx(a, b),
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_cx(a, b),
         };
     }
 
-    fn h(&mut self, a: usize) {
+    fn add_h(&mut self, a: usize) {
         match *self {
-            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.h(a),
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_h(a),
         };
     }
 
-    fn s(&mut self, a: usize) {
+    fn add_s(&mut self, a: usize) {
         match *self {
-            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.s(a),
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_s(a),
         };
     }
 
-    fn x(&mut self, a: usize) {
+    fn add_x(&mut self, a: usize) {
         match *self {
-            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.x(a),
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_x(a),
         };
     }
 
-    fn z(&mut self, a: usize) {
+    fn add_z(&mut self, a: usize) {
         match *self {
-            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.z(a),
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_z(a),
         };
     }
 
-    fn measurement(&mut self, a: usize) -> u8 {
+    fn add_measurement(&mut self, a: usize, result: &mut u8) {
         match *self {
-            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.measurement(a),
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_measurement(a, result),
         }
     }
 
@@ -71,6 +102,21 @@ impl Simulator for SimulatorWrapper {
             SimulatorWrapper::CHPSimulator(ref mut sim) => sim.reset(),
         };
     }
+
+    fn run(&mut self) {
+        match *self {
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.run(),
+        }
+    }
+}
+
+pub enum Operation {
+    CX(usize, usize),
+    H(usize),
+    S(usize),
+    X(usize),
+    Z(usize),
+    M(usize, &mut u8),
 }
 
 pub enum Type {

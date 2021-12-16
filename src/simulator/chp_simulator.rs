@@ -1,4 +1,5 @@
-use super::Simulator;
+
+use super::{SimulatorExternal, SimulatorInternal, Operation};
 use ndarray::*;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
@@ -6,6 +7,7 @@ pub struct CHPSimulator {
     qubit_num: usize,
     stabilizer_tableau: Array2<u8>,
     rng: rand::rngs::SmallRng,
+    operations: Vec<Operation>
 }
 
 impl CHPSimulator {
@@ -13,11 +15,14 @@ impl CHPSimulator {
         let size = qubit_num * 2;
         let stabilizer_tableau: Array2<u8> =
             concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
+        
+        let operations = Vec::<Operation>::new();
 
         CHPSimulator {
             qubit_num,
             stabilizer_tableau,
             rng,
+            operations
         }
     }
 
@@ -81,14 +86,10 @@ impl CHPSimulator {
             0 => temp[self.qubit_num * 2] = 0,
             _ => panic!("Error at row_sum"),
         }
-
-        let row_i = self.stabilizer_tableau.slice(s![i, ..self.qubit_num * 2]);
-
-        *temp += &row_i;
     }
 }
 
-impl Simulator for CHPSimulator {
+impl SimulatorInternal for CHPSimulator {
     /// CNOT gate
     fn cx(&mut self, a: usize, b: usize) {
         let (mut r, x_a, mut x_b, mut z_a, z_b) = self.stabilizer_tableau.multi_slice_mut((
@@ -158,7 +159,7 @@ impl Simulator for CHPSimulator {
     }
 
     /// measurement
-    fn measurement(&mut self, a: usize) -> u8 {
+    fn measurement(&mut self, a: usize, result: &mut u8) {
         let p = self
             .stabilizer_tableau
             .slice(s![self.qubit_num..self.qubit_num * 2, a])
@@ -189,12 +190,11 @@ impl Simulator for CHPSimulator {
                 self.stabilizer_tableau[[p[0], self.qubit_num * 2]] = 0;
             }
 
-            return self.stabilizer_tableau[[p[0], self.qubit_num * 2]];
+            *result = self.stabilizer_tableau[[p[0], self.qubit_num * 2]];
         } else {
             // 測定結果が決定的のとき
             let mut temp: Array1<u8> = Array::zeros(self.qubit_num * 2 + 1);
-            dbg!(&temp);
-            dbg!(self.stabilizer_tableau.slice(s![..self.qubit_num, a]));
+
             self.stabilizer_tableau
                 .slice(s![..self.qubit_num, a])
                 .iter()
@@ -202,13 +202,59 @@ impl Simulator for CHPSimulator {
                 .filter(|(_, &i)| i == 1)
                 .for_each(|(i, _)| self.row_sum_temp(i + self.qubit_num, &mut temp));
 
-            return temp[self.qubit_num * 2];
+            *result = temp[self.qubit_num * 2];
         }
+    }
+}
+
+impl SimulatorExternal for CHPSimulator {
+    /// add CNOT gate
+    fn add_cx(&mut self, a: usize, b: usize) {
+        self.operations.push(Operation::CX(a, b));
+    }
+
+    /// add Hadamard gate
+    fn add_h(&mut self, a: usize) {
+        self.operations.push(Operation::H(a));
+    }
+
+    /// add S gate (Phase gate)
+    fn add_s(&mut self, a: usize) {
+        self.operations.push(Operation::S(a));
+    }
+
+    /// add X gate
+    fn add_x(&mut self, a: usize) {
+        self.operations.push(Operation::X(a))
+    }
+
+    /// add Z gate
+    fn add_z(&mut self, a: usize) {
+        self.operations.push(Operation::Z(a))
+    }
+
+    /// add measurement
+    fn add_measurement(&mut self, a: usize, result: &mut u8) {
+        self.operations.push(Operation::M(a, result));
     }
 
     /// Reset stabilizer tableau
     fn reset(&mut self) {
         let size = self.qubit_num * 2;
         self.stabilizer_tableau = concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
+    }
+
+    /// run circuit
+    fn run(&mut self) {
+        for op in self.operations {
+            match op {
+                Operation::CX(a, b) => self.cx(a, b),
+                Operation::H(a) => self.add_h(a),
+                Operation::M(a, result) => self.measurement(a, result),
+                Operation::S(a) => self.s(a),
+                Operation::X(a) => self.x(a),
+                Operation::Z(a) => self.z(a),
+            }
+        }
     }
 }
