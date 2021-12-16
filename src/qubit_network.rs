@@ -4,16 +4,16 @@ use std::collections::HashMap;
 
 use crate::simulator::{self, SimulatorExternal, SimulatorWrapper};
 
-pub struct QubitNetwork {
+pub struct QubitNetwork<'a> {
     network: HashMap<(i32, i32), Vec<(i32, i32)>>,
     bit_error_map: HashMap<(i32, i32), f32>,
     connection_error_map: HashMap<((i32, i32), (i32, i32)), f32>,
     index_to_sim: HashMap<(i32, i32), usize>,
-    sim: SimulatorWrapper,
+    sim: SimulatorWrapper<'a>,
     rng: rand::rngs::SmallRng,
 }
 
-impl QubitNetwork {
+impl<'a> QubitNetwork<'a> {
     /// rotated surface codeに適したlatticeを作成する
     pub fn new_rotated_planer_lattice(
         vertical: usize,
@@ -145,7 +145,7 @@ impl QubitNetwork {
     }
 
     /// measurement
-    pub fn measurement(&mut self, a: (i32, i32), result: Rc<Cell<u8>>) {
+    pub fn measurement(&mut self, a: (i32, i32), result: &mut u8) {
         self.sim
             .add_measurement(*self.index_to_sim.get(&a).expect("index does not exist"), result);
     }

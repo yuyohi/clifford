@@ -7,15 +7,15 @@ use crate::qubit_network::QubitNetwork;
 use crate::simulator;
 use crate::simulator::Type;
 
-pub struct RotatedSurfaceCode {
-    network: QubitNetwork,
+pub struct RotatedSurfaceCode<'a> {
+    network: QubitNetwork<'a>,
     measurement_qubit_z: Vec<(i32, i32)>,
     measurement_qubit_x: Vec<(i32, i32)>,
     data_qubit: Vec<(i32, i32)>,
     Syndrome_result: Array2<u8>,
 }
 
-impl RotatedSurfaceCode {
+impl<'a> RotatedSurfaceCode<'a> {
     pub fn new(distance: usize, p: f32, seed: u64) -> Self {
         if distance % 2 == 0 {
             panic!("distance must be odd number.");

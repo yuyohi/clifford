@@ -3,14 +3,14 @@ use super::{SimulatorExternal, SimulatorInternal, Operation};
 use ndarray::*;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
-pub struct CHPSimulator {
+pub struct CHPSimulator<'a> {
     qubit_num: usize,
     stabilizer_tableau: Array2<u8>,
     rng: rand::rngs::SmallRng,
-    operations: Vec<Operation>
+    operations: Vec<Operation<'a>>
 }
 
-impl CHPSimulator {
+impl<'a> CHPSimulator<'a> {
     pub fn new(qubit_num: usize, rng: rand::rngs::SmallRng) -> Self {
         let size = qubit_num * 2;
         let stabilizer_tableau: Array2<u8> =
@@ -89,7 +89,7 @@ impl CHPSimulator {
     }
 }
 
-impl SimulatorInternal for CHPSimulator {
+impl<'a> SimulatorInternal for CHPSimulator<'a> {
     /// CNOT gate
     fn cx(&mut self, a: usize, b: usize) {
         let (mut r, x_a, mut x_b, mut z_a, z_b) = self.stabilizer_tableau.multi_slice_mut((
@@ -207,7 +207,7 @@ impl SimulatorInternal for CHPSimulator {
     }
 }
 
-impl SimulatorExternal for CHPSimulator {
+impl<'a> SimulatorExternal for CHPSimulator<'a> {
     /// add CNOT gate
     fn add_cx(&mut self, a: usize, b: usize) {
         self.operations.push(Operation::CX(a, b));
@@ -234,8 +234,8 @@ impl SimulatorExternal for CHPSimulator {
     }
 
     /// add measurement
-    fn add_measurement(&mut self, a: usize, result: &mut u8) {
-        self.operations.push(Operation::M(a, result));
+    fn add_measurement(&'a mut self, a: usize, result: &'a mut u8) {
+        self.operations.push(Operation::<'a>::M(a, result));
     }
 
     /// Reset stabilizer tableau
