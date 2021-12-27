@@ -1,31 +1,51 @@
-
-use super::{SimulatorExternal, SimulatorInternal, Operation};
+use std::rc::Rc;
+use std::cell::Cell;
 use ndarray::*;
-use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
+use super::{
+    core::{Dispatcher, SimulatorCore},
+    Operation, SimulatorInterface,
+};
 
-pub struct CHPSimulator<'a> {
+pub struct CHPSimulatorCore {
     qubit_num: usize,
     stabilizer_tableau: Array2<u8>,
     rng: rand::rngs::SmallRng,
-    operations: Vec<Operation<'a>>
+    clasical_register: Vec<u8>,
 }
 
-impl<'a> CHPSimulator<'a> {
+pub struct CHPSimulator {
+    core: CHPSimulatorCore,
+    dispatcher: Dispatcher,
+}
+
+impl CHPSimulator {
     pub fn new(qubit_num: usize, rng: rand::rngs::SmallRng) -> Self {
         let size = qubit_num * 2;
         let stabilizer_tableau: Array2<u8> =
             concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
-        
-        let operations = Vec::<Operation>::new();
+
+        let operations = Vec::new();
+        let clasical_register = vec![0; qubit_num];
+        let round = 1; // デフォルト値
 
         CHPSimulator {
-            qubit_num,
-            stabilizer_tableau,
-            rng,
-            operations
+            core: CHPSimulatorCore {
+                qubit_num,
+                stabilizer_tableau,
+                rng,
+                clasical_register,
+            },
+            dispatcher: Dispatcher::new(operations, round),
         }
     }
 
+    pub fn result(&self) -> &Vec<u8> {
+        &self.core.clasical_register
+    }
+}
+
+impl CHPSimulatorCore {
     fn g(&self, x1: u8, z1: u8, x2: u8, z2: u8) -> i8 {
         match (x1, z1, x2, z2) {
             (0, 0, _, _) => 0,
@@ -89,7 +109,7 @@ impl<'a> CHPSimulator<'a> {
     }
 }
 
-impl<'a> SimulatorInternal for CHPSimulator<'a> {
+impl SimulatorCore for CHPSimulatorCore {
     /// CNOT gate
     fn cx(&mut self, a: usize, b: usize) {
         let (mut r, x_a, mut x_b, mut z_a, z_b) = self.stabilizer_tableau.multi_slice_mut((
@@ -159,7 +179,7 @@ impl<'a> SimulatorInternal for CHPSimulator<'a> {
     }
 
     /// measurement
-    fn measurement(&mut self, a: usize, result: &mut u8) {
+    fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>) {
         let p = self
             .stabilizer_tableau
             .slice(s![self.qubit_num..self.qubit_num * 2, a])
@@ -190,7 +210,9 @@ impl<'a> SimulatorInternal for CHPSimulator<'a> {
                 self.stabilizer_tableau[[p[0], self.qubit_num * 2]] = 0;
             }
 
-            *result = self.stabilizer_tableau[[p[0], self.qubit_num * 2]];
+            // 値を格納
+            //self.clasical_register[a] = self.stabilizer_tableau[[p[0], self.qubit_num * 2]];
+            register.set(self.stabilizer_tableau[[p[0], self.qubit_num * 2]]);
         } else {
             // 測定結果が決定的のとき
             let mut temp: Array1<u8> = Array::zeros(self.qubit_num * 2 + 1);
@@ -202,58 +224,75 @@ impl<'a> SimulatorInternal for CHPSimulator<'a> {
                 .filter(|(_, &i)| i == 1)
                 .for_each(|(i, _)| self.row_sum_temp(i + self.qubit_num, &mut temp));
 
-            *result = temp[self.qubit_num * 2];
+            // 値を格納
+            //self.clasical_register[a] = temp[self.qubit_num * 2];
+            register.set(temp[self.qubit_num * 2]);
         }
     }
-}
 
-impl<'a> SimulatorExternal for CHPSimulator<'a> {
-    /// add CNOT gate
-    fn add_cx(&mut self, a: usize, b: usize) {
-        self.operations.push(Operation::CX(a, b));
-    }
-
-    /// add Hadamard gate
-    fn add_h(&mut self, a: usize) {
-        self.operations.push(Operation::H(a));
-    }
-
-    /// add S gate (Phase gate)
-    fn add_s(&mut self, a: usize) {
-        self.operations.push(Operation::S(a));
-    }
-
-    /// add X gate
-    fn add_x(&mut self, a: usize) {
-        self.operations.push(Operation::X(a))
-    }
-
-    /// add Z gate
-    fn add_z(&mut self, a: usize) {
-        self.operations.push(Operation::Z(a))
-    }
-
-    /// add measurement
-    fn add_measurement(&'a mut self, a: usize, result: &'a mut u8) {
-        self.operations.push(Operation::<'a>::M(a, result));
-    }
-
-    /// Reset stabilizer tableau
     fn reset(&mut self) {
         let size = self.qubit_num * 2;
         self.stabilizer_tableau = concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
     }
+}
+
+impl SimulatorInterface for CHPSimulator {
+    /// add CNOT gate
+    fn add_cx(&mut self, a: usize, b: usize) {
+        self.dispatcher.push(Operation::CX(a, b));
+    }
+
+    /// add Hadamard gate
+    fn add_h(&mut self, a: usize) {
+        self.dispatcher.push(Operation::H(a));
+    }
+
+    /// add S gate (Phase gate)
+    fn add_s(&mut self, a: usize) {
+        self.dispatcher.push(Operation::S(a));
+    }
+
+    /// add X gate
+    fn add_x(&mut self, a: usize) {
+        self.dispatcher.push(Operation::X(a))
+    }
+
+    /// add Z gate
+    fn add_z(&mut self, a: usize) {
+        self.dispatcher.push(Operation::Z(a))
+    }
+
+    /// add measurement
+    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>) {
+        self.dispatcher.push(Operation::M(a, register));
+    }
+
+    ///  add measurement as once
+    //fn add_measurement_at_once(&mut self, a: Vec<usize>, register: &mut Array3<u8>) {
+
+    //}
+
+    /// Reset stabilizer tableau
+    fn reset(&mut self) {
+        self.core.reset();
+    }
 
     /// run circuit
     fn run(&mut self) {
-        for op in self.operations {
-            match op {
-                Operation::CX(a, b) => self.cx(a, b),
-                Operation::H(a) => self.add_h(a),
-                Operation::M(a, result) => self.measurement(a, result),
-                Operation::S(a) => self.s(a),
-                Operation::X(a) => self.x(a),
-                Operation::Z(a) => self.z(a),
+        let Self { core, dispatcher } = self;
+        let round = dispatcher.round();
+
+        for i in 0..round {
+            for op in dispatcher.operations().iter() {
+                match op {
+                    Operation::CX(a, b) => core.cx(*a, *b),
+                    Operation::H(a) => core.h(*a),
+                    //Operation::MAll(c) => ,
+                    Operation::M(a, register) => core.measurement(*a, register),
+                    Operation::S(a) => core.s(*a),
+                    Operation::X(a) => core.x(*a),
+                    Operation::Z(a) => core.z(*a),
+                }
             }
         }
     }

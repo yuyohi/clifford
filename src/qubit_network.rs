@@ -1,19 +1,22 @@
-
+use std::rc::Rc;
+use std::cell::Cell;
+use ndarray::prelude::*;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use std::collections::HashMap;
+use ndarray::prelude::*;
 
-use crate::simulator::{self, SimulatorExternal, SimulatorWrapper};
+use crate::simulator::{self, SimulatorInterface, SimulatorWrapper};
 
-pub struct QubitNetwork<'a> {
+pub struct QubitNetwork {
     network: HashMap<(i32, i32), Vec<(i32, i32)>>,
     bit_error_map: HashMap<(i32, i32), f32>,
     connection_error_map: HashMap<((i32, i32), (i32, i32)), f32>,
     index_to_sim: HashMap<(i32, i32), usize>,
-    sim: SimulatorWrapper<'a>,
+    sim: SimulatorWrapper,
     rng: rand::rngs::SmallRng,
 }
 
-impl<'a> QubitNetwork<'a> {
+impl QubitNetwork {
     /// rotated surface codeに適したlatticeを作成する
     pub fn new_rotated_planer_lattice(
         vertical: usize,
@@ -145,13 +148,25 @@ impl<'a> QubitNetwork<'a> {
     }
 
     /// measurement
-    pub fn measurement(&mut self, a: (i32, i32), result: &mut u8) {
+    pub fn measurement(&mut self, a: (i32, i32), register: Rc<Cell<u8>>) {
         self.sim
-            .add_measurement(*self.index_to_sim.get(&a).expect("index does not exist"), result);
+            .add_measurement(*self.index_to_sim.get(&a).expect("index does not exist"), register);
     }
+
+    /// arrayに測定結果を格納
+    //pub fn measurement_at_once(&mut self, a: &Vec<(i32, i32)>, register: &mut Array3<u8>) {
+    //    let a = a.iter().map(|coord| self.index_to_sim.get(&coord));
+    //    self.sim
+    //        .add_measurement_at_once(a, result);
+    //}
 
     /// 指定された座標がネットワークに存在するかを判定する
     pub fn check_contains(&self, a: (i32, i32)) -> bool {
         self.network.contains_key(&a)
+    }
+
+    /// 回路を実行する
+    pub fn run(&mut self) {
+
     }
 }

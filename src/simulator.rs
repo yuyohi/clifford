@@ -1,9 +1,13 @@
+use std::rc::Rc;
+use std::cell::Cell;
+use ndarray::prelude::*;
 use self::chp_simulator::CHPSimulator;
 
 pub mod chp_simulator;
+pub mod core;
 
 /// シミュレータの外部からもアクセスできるオペレーション
-pub trait SimulatorExternal<'a> {
+pub trait SimulatorInterface {
     /// add CNOT gate
     fn add_cx(&mut self, a: usize, b: usize);
 
@@ -20,10 +24,10 @@ pub trait SimulatorExternal<'a> {
     fn add_z(&mut self, a: usize);
 
     /// add measurement
-    fn add_measurement(&'a mut self, a: usize, result: &'a mut u8);
+    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>);
 
-    // add measure as once
-    // fn add_measurement_at_once(&mut self, a: Vec<usize>, register: &mut u8);
+    // add measurement as once
+    //fn add_measurement_at_once(&mut self, a: Vec<usize>, register: &mut Array3<u8>);
 
     /// add Reset stabilizer tableau
     fn reset(&mut self);
@@ -32,35 +36,12 @@ pub trait SimulatorExternal<'a> {
     fn run(&mut self);
 }
 
-/// シミュレータの内部からのみアクセスできるオペレーション
-pub trait SimulatorInternal {
-    /// CNOT gate
-    fn cx(&mut self, a: usize, b: usize);
 
-    /// Hadamard gate
-    fn h(&mut self, a: usize);
-
-    /// S gate (Phase gate)
-    fn s(&mut self, a: usize);
-
-    ///X gate
-    fn x(&mut self, a: usize);
-
-    /// Z gate
-    fn z(&mut self, a: usize);
-
-    /// measurement
-    fn measurement(&mut self, a: usize, result: &mut u8);
-
-    // measure as once
-    //fn measurement_at_once(&mut self, a: Vec<usize>, register: &mut u8);
+pub enum SimulatorWrapper {
+    CHPSimulator(CHPSimulator),
 }
 
-pub enum SimulatorWrapper<'a> {
-    CHPSimulator(CHPSimulator<'a>),
-}
-
-impl<'a> SimulatorExternal<'a> for SimulatorWrapper<'a> {
+impl SimulatorInterface for SimulatorWrapper {
     fn add_cx(&mut self, a: usize, b: usize) {
         match *self {
             SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_cx(a, b),
@@ -91,9 +72,9 @@ impl<'a> SimulatorExternal<'a> for SimulatorWrapper<'a> {
         };
     }
 
-    fn add_measurement(&'a mut self, a: usize, result: &'a mut u8) {
+    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>) {
         match *self {
-            SimulatorWrapper::<'a>::CHPSimulator(ref mut sim) => sim.add_measurement(a, result),
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_measurement(a, register),
         }
     }
 
@@ -110,15 +91,17 @@ impl<'a> SimulatorExternal<'a> for SimulatorWrapper<'a> {
     }
 }
 
-pub enum Operation<'a> {
+pub enum Operation {
     CX(usize, usize),
     H(usize),
     S(usize),
     X(usize),
     Z(usize),
-    M(usize, &'a mut u8),
+    M(usize, Rc<Cell<u8>>),
+    //MAll(char)
 }
 
 pub enum Type {
     CHPSimulator,
 }
+
