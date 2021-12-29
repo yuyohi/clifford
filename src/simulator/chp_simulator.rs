@@ -1,11 +1,11 @@
-use std::rc::Rc;
-use std::cell::Cell;
-use ndarray::*;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
 use super::{
     core::{Dispatcher, SimulatorCore},
     Operation, SimulatorInterface,
 };
+use ndarray::*;
+use rand::{rngs::SmallRng, Rng, SeedableRng};
+use std::cell::Cell;
+use std::rc::Rc;
 
 pub struct CHPSimulatorCore {
     qubit_num: usize,
@@ -50,7 +50,7 @@ impl CHPSimulatorCore {
         match (x1, z1, x2, z2) {
             (0, 0, _, _) => 0,
             (1, 1, _, _) => (z2 - x2) as i8,
-            (1, 0, _, _) => (z2 * (2 * x2 - 1)) as i8,
+            (1, 0, _, _) => z2 as i8 * (2 * x2 as i8 - 1),
             (0, 1, _, _) => x2 as i8 * (1 - 2 * z2 as i8),
             _ => panic!("Tableau parameters must be 0 or 1"),
         }
@@ -213,6 +213,7 @@ impl SimulatorCore for CHPSimulatorCore {
             // 値を格納
             //self.clasical_register[a] = self.stabilizer_tableau[[p[0], self.qubit_num * 2]];
             register.set(self.stabilizer_tableau[[p[0], self.qubit_num * 2]]);
+            // println!("{}", self.stabilizer_tableau[[p[0], self.qubit_num * 2]]);
         } else {
             // 測定結果が決定的のとき
             let mut temp: Array1<u8> = Array::zeros(self.qubit_num * 2 + 1);
@@ -227,6 +228,47 @@ impl SimulatorCore for CHPSimulatorCore {
             // 値を格納
             //self.clasical_register[a] = temp[self.qubit_num * 2];
             register.set(temp[self.qubit_num * 2]);
+            // println!("{}", temp[self.qubit_num * 2]);
+        }
+    }
+
+    /// measurement
+    fn measurement_to_zero(&mut self, a: usize) {
+        let p = self
+            .stabilizer_tableau
+            .slice(s![self.qubit_num..self.qubit_num * 2, a])
+            .iter()
+            .enumerate()
+            .filter(|(_, &x)| x == 1)
+            .map(|(i, _)| i + self.qubit_num)
+            .collect::<Vec<usize>>();
+
+        // 一つでもXpa = 1のとき、結果はランダム
+        if p.len() != 0 {
+            p.iter().skip(1).for_each(|&i| self.row_sum(i, p[0]));
+
+            // (p[0] - qubit_num) 行目をp[0]行目に置換
+            let (mut q_n, mut q) = self
+                .stabilizer_tableau
+                .multi_slice_mut((s![p[0] - self.qubit_num, ..], s![p[0], ..]));
+
+            q_n.assign(&q);
+            for i in q.iter_mut() {
+                *i = 0;
+            }
+
+            // 必ず0にセット(固有値1)
+            self.stabilizer_tableau[[p[0], self.qubit_num * 2]] = 0;
+        } else {
+            // 測定結果が決定的のとき
+            let mut temp: Array1<u8> = Array::zeros(self.qubit_num * 2 + 1);
+
+            self.stabilizer_tableau
+                .slice(s![..self.qubit_num, a])
+                .iter()
+                .enumerate()
+                .filter(|(_, &i)| i == 1)
+                .for_each(|(i, _)| self.row_sum_temp(i + self.qubit_num, &mut temp));
         }
     }
 
@@ -272,6 +314,10 @@ impl SimulatorInterface for CHPSimulator {
 
     //}
 
+    fn add_measurement_to_zero(&mut self, a: usize) {
+        self.dispatcher.push(Operation::MToZero(a));
+    }
+
     /// Reset stabilizer tableau
     fn reset(&mut self) {
         self.core.reset();
@@ -280,19 +326,18 @@ impl SimulatorInterface for CHPSimulator {
     /// run circuit
     fn run(&mut self) {
         let Self { core, dispatcher } = self;
-        let round = dispatcher.round();
 
-        for i in 0..round {
-            for op in dispatcher.operations().iter() {
-                match op {
-                    Operation::CX(a, b) => core.cx(*a, *b),
-                    Operation::H(a) => core.h(*a),
-                    //Operation::MAll(c) => ,
-                    Operation::M(a, register) => core.measurement(*a, register),
-                    Operation::S(a) => core.s(*a),
-                    Operation::X(a) => core.x(*a),
-                    Operation::Z(a) => core.z(*a),
-                }
+        for op in dispatcher.operations().iter() {
+            println!("{:?}", op);
+            match op {
+                Operation::CX(a, b) => core.cx(*a, *b),
+                Operation::H(a) => core.h(*a),
+                //Operation::MAll(c) => ,
+                Operation::M(a, register) => core.measurement(*a, register),
+                Operation::MToZero(a) => core.measurement_to_zero(*a),
+                Operation::S(a) => core.s(*a),
+                Operation::X(a) => core.x(*a),
+                Operation::Z(a) => core.z(*a),
             }
         }
     }

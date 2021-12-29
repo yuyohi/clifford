@@ -31,6 +31,8 @@ pub trait SimulatorCore {
     // measure as once
     //fn measurement_at_once(&mut self, a: Vec<usize>, register: &mut Array3<u8>);
 
+    fn measurement_to_zero(&mut self, a: usize);
+
     ///reset
     fn reset(&mut self);
 }

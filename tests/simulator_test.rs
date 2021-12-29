@@ -1,4 +1,4 @@
-use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -12,12 +12,11 @@ fn make_bell_state() {
         let rng = SmallRng::seed_from_u64(seed);
         let mut sim = CHPSimulator::new(3, rng);
 
-        let result = vec![Rc::new(Cell::new(0)); 2 ];
+        let result = vec![Rc::new(Cell::new(0)); 2];
         sim.add_h(0);
         sim.add_cx(0, 1);
         sim.add_measurement(0, Rc::clone(&result[0]));
         sim.add_measurement(1, Rc::clone(&result[1]));
-
 
         sim.run();
 

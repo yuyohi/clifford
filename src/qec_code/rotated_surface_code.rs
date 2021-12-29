@@ -10,17 +10,19 @@ use crate::simulator;
 use crate::simulator::Type;
 
 pub struct RotatedSurfaceCode {
+    distance: usize,
     round: usize,
     network: QubitNetwork,
     measurement_qubit_z: Vec<(i32, i32)>,
     measurement_qubit_x: Vec<(i32, i32)>,
     data_qubit: Vec<(i32, i32)>,
-    syndrome_result_z: Vec<Vec<Rc<Cell<u8>>>>,
-    syndrome_result_x: Vec<Vec<Rc<Cell<u8>>>>,
+    syndrome_result_z: Vec<Vec<Vec<Rc<Cell<u8>>>>>,
+    syndrome_result_x: Vec<Vec<Vec<Rc<Cell<u8>>>>>,
+    classical_register: Vec<Vec<Rc<Cell<u8>>>>,
 }
 
 impl RotatedSurfaceCode {
-    pub fn new(distance: usize, p: f32, round: usize, seed: u64) -> Self {
+    pub fn new(distance: usize, round: usize, p: f32, seed: u64) -> Self {
         if distance % 2 == 0 {
             panic!("distance must be odd number.");
         }
@@ -47,7 +49,7 @@ impl RotatedSurfaceCode {
         });
 
         // data bitの生成
-        let mut data_qubit: Vec<(i32, i32)> = vec![];
+        let mut data_qubit = vec![];
         for x in (0..distance as i32 * 2).step_by(2) {
             for y in (0..distance as i32 * 2).step_by(2) {
                 data_qubit.push((x, y));
@@ -66,10 +68,28 @@ impl RotatedSurfaceCode {
             .all(|&coord| network.check_contains(coord)));
 
         // syndrome resultを格納する行列
-        let syndrome_result_z = vec![vec![Rc::new(Cell::new(0)); distance + 1]; distance / 2];
-        let syndrome_result_x = vec![vec![Rc::new(Cell::new(0)); distance / 2]; distance + 1];
+        let syndrome_result_z = (0..round)
+            .map(|_| {
+                (0..distance / 2)
+                    .map(|_| (0..distance + 1).map(|_| Rc::new(Cell::new(0))).collect())
+                    .collect()
+            })
+            .collect();
+        let syndrome_result_x = (0..round)
+        .map(|_| {
+            (0..distance + 1)
+                .map(|_| (0..distance / 2).map(|_| Rc::new(Cell::new(0))).collect())
+                .collect()
+        })
+        .collect();
+
+        // data qubit の測定結果を格納する行列
+        let classical_register = (0..distance)
+            .map(|_| (0..distance).map(|_| Rc::new(Cell::new(0))).collect())
+            .collect();
 
         Self {
+            distance,
             round,
             network,
             measurement_qubit_z,
@@ -77,6 +97,7 @@ impl RotatedSurfaceCode {
             data_qubit,
             syndrome_result_z,
             syndrome_result_x,
+            classical_register,
         }
     }
 
@@ -128,19 +149,19 @@ impl RotatedSurfaceCode {
     /// syndrome measurement
     pub fn syndrome_measurement(&mut self) {
         let Self {
-            round,
             network,
             measurement_qubit_z,
             measurement_qubit_x,
             data_qubit,
             syndrome_result_z,
             syndrome_result_x,
+            ..
         } = self;
 
         let x_order = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
         let z_order = [(1, 1), (-1, 1), (1, -1), (-1, -1)];
 
-        for i in 0..*round {
+        for (matrix_z, matrix_x) in syndrome_result_z.iter().zip(syndrome_result_x.iter()) {
             // XスタビライザーにHゲートを作用させる
             for &x_stab in measurement_qubit_x.iter() {
                 network.h(x_stab);
@@ -169,24 +190,82 @@ impl RotatedSurfaceCode {
 
             // measurement qubitの測定
             // Z
-            for (coord, register) in measurement_qubit_z
-                .iter()
-                .zip(syndrome_result_z.iter().flatten())
-            {
+            for (coord, register) in measurement_qubit_z.iter().zip(matrix_z.iter().flatten()) {
                 network.measurement(*coord, Rc::clone(register));
             }
             // X
-            for (coord, register) in measurement_qubit_x
-                .iter()
-                .zip(syndrome_result_x.iter().flatten())
-            {
+            for (coord, register) in measurement_qubit_x.iter().zip(matrix_x.iter().flatten()) {
                 network.measurement(*coord, Rc::clone(register));
             }
         }
     }
 
+    /// encoding logical one
     pub fn initialize(&mut self) {
-        unimplemented!();
+        let Self {
+            network,
+            measurement_qubit_x,
+            data_qubit,
+            ..
+        } = self;
+        let x_order = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
+
+        // X syndrome の測定
+        // XスタビライザーにHゲートを作用させる
+        for &x_stab in measurement_qubit_x.iter() {
+            network.h(x_stab);
+        }
+
+        // CNOT
+        for x in x_order.iter() {
+            for x_stab in measurement_qubit_x.iter() {
+                let coord_data_x = (x_stab.0 + x.0, x_stab.1 + x.1);
+
+                // data bitが存在するときのみCNOT
+                if data_qubit.contains(&coord_data_x) {
+                    network.cx(*x_stab, coord_data_x);
+                }
+            }
+        }
+
+        // XスタビライザーにHゲートを作用させる
+        for &x_stab in measurement_qubit_x.iter() {
+            network.h(x_stab);
+        }
+
+        // mesurement qubit の測定 (強制的に固有値+1に射影する)
+        for coord in measurement_qubit_x.iter() {
+            network.measurement_to_zero(*coord);
+        }
+    }
+
+    /// logical z measurement
+    pub fn logical_measurement(&mut self) {
+        let Self {
+            network,
+            data_qubit,
+            classical_register,
+            ..
+        } = self;
+
+        for coord in data_qubit.iter() {
+            debug_assert!(coord.0 >= 0, "data coord must not be negative number");
+            debug_assert!(coord.1 >= 0, "data coord must not be negative number");
+
+            network.measurement(
+                *coord,
+                Rc::clone(&classical_register[(coord.0 / 2) as usize][(coord.1 / 2) as usize]),
+            );
+        }
+    }
+
+    /// run circuit
+    pub fn run(&mut self) {
+        self.network.run();
+    }
+
+    pub fn classical_register(&self) -> &Vec<Vec<Rc<Cell<u8>>>> {
+        &self.classical_register
     }
 }
 
@@ -196,7 +275,7 @@ mod test {
     #[test]
     fn gen_qec_code() {
         for distance in (3..27).step_by(2) {
-            let code = RotatedSurfaceCode::new(distance, 0.01, distance + 2, 0);
+            let code = RotatedSurfaceCode::new(distance, distance + 2, 0.01, 0);
             assert_eq!(
                 distance * distance,
                 code.measurement_qubit_z.len() + code.measurement_qubit_z.len() + 1

@@ -1,9 +1,9 @@
-use std::rc::Rc;
-use std::cell::Cell;
+use ndarray::prelude::*;
 use ndarray::prelude::*;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
+use std::cell::Cell;
 use std::collections::HashMap;
-use ndarray::prelude::*;
+use std::rc::Rc;
 
 use crate::simulator::{self, SimulatorInterface, SimulatorWrapper};
 
@@ -149,8 +149,10 @@ impl QubitNetwork {
 
     /// measurement
     pub fn measurement(&mut self, a: (i32, i32), register: Rc<Cell<u8>>) {
-        self.sim
-            .add_measurement(*self.index_to_sim.get(&a).expect("index does not exist"), register);
+        self.sim.add_measurement(
+            *self.index_to_sim.get(&a).expect("index does not exist"),
+            register,
+        );
     }
 
     /// arrayに測定結果を格納
@@ -160,6 +162,11 @@ impl QubitNetwork {
     //        .add_measurement_at_once(a, result);
     //}
 
+    pub fn measurement_to_zero(&mut self, a: (i32, i32)) {
+        self.sim
+            .add_measurement_to_zero(*self.index_to_sim.get(&a).expect("index does not exist"));
+    }
+
     /// 指定された座標がネットワークに存在するかを判定する
     pub fn check_contains(&self, a: (i32, i32)) -> bool {
         self.network.contains_key(&a)
@@ -167,6 +174,6 @@ impl QubitNetwork {
 
     /// 回路を実行する
     pub fn run(&mut self) {
-
+        self.sim.run();
     }
 }

@@ -1,7 +1,7 @@
-use std::rc::Rc;
-use std::cell::Cell;
-use ndarray::prelude::*;
 use self::chp_simulator::CHPSimulator;
+use ndarray::prelude::*;
+use std::cell::Cell;
+use std::rc::Rc;
 
 pub mod chp_simulator;
 pub mod core;
@@ -29,13 +29,15 @@ pub trait SimulatorInterface {
     // add measurement as once
     //fn add_measurement_at_once(&mut self, a: Vec<usize>, register: &mut Array3<u8>);
 
+    /// add measurement coercion to zero
+    fn add_measurement_to_zero(&mut self, a: usize);
+
     /// add Reset stabilizer tableau
     fn reset(&mut self);
 
     /// add run circuit
     fn run(&mut self);
 }
-
 
 pub enum SimulatorWrapper {
     CHPSimulator(CHPSimulator),
@@ -78,6 +80,12 @@ impl SimulatorInterface for SimulatorWrapper {
         }
     }
 
+    fn add_measurement_to_zero(&mut self, a: usize) {
+        match *self {
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_measurement_to_zero(a),
+        }
+    }
+
     fn reset(&mut self) {
         match *self {
             SimulatorWrapper::CHPSimulator(ref mut sim) => sim.reset(),
@@ -91,6 +99,7 @@ impl SimulatorInterface for SimulatorWrapper {
     }
 }
 
+#[derive(Debug)]
 pub enum Operation {
     CX(usize, usize),
     H(usize),
@@ -98,10 +107,10 @@ pub enum Operation {
     X(usize),
     Z(usize),
     M(usize, Rc<Cell<u8>>),
+    MToZero(usize),
     //MAll(char)
 }
 
 pub enum Type {
     CHPSimulator,
 }
-
