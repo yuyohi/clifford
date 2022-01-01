@@ -7,7 +7,7 @@ use clifford::simulator::{chp_simulator::CHPSimulator, SimulatorInterface};
 #[test]
 fn make_bell_state() {
     let mut count_0 = 0;
-    let loop_num = 100000;
+    let loop_num = 10000;
     for seed in 0..loop_num {
         let rng = SmallRng::seed_from_u64(seed);
         let mut sim = CHPSimulator::new(3, rng);

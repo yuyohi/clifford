@@ -2,7 +2,7 @@ use clifford::qec_code::rotated_surface_code::RotatedSurfaceCode;
 
 #[test]
 fn gen_qec_code() {
-    let distance = 3;
+    let distance = 23;
     let seed = 10;
     let mut code = RotatedSurfaceCode::new(distance, distance + 1, 0.01, seed);
 
@@ -17,12 +17,16 @@ fn gen_qec_code() {
         .map(|row| row.iter().map(|value| value.get()).collect())
         .collect();
 
-    let rowsum: Vec<u8> = result_vec.iter().map(|row| row.iter().sum()).collect();
+    let rowsum: Vec<u8> = result_vec
+        .clone()
+        .into_iter()
+        .reduce(|row_a, row_b| row_a.iter().zip(row_b.iter()).map(|(&a, &b)| a + b).collect())
+        .unwrap();
 
-    println!("rowsum: {:?}", rowsum);
+    //println!("rowsum: {:?}", rowsum);
 
     for row in result_vec.iter() {
-        println!("{:?}", row);
+        //println!("{:?}", row);
     }
 
     for value in rowsum {

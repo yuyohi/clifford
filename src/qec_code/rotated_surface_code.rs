@@ -27,17 +27,9 @@ impl RotatedSurfaceCode {
             panic!("distance must be odd number.");
         }
 
-        let network = QubitNetwork::new_rotated_planer_lattice(
-            distance,
-            distance,
-            p,
-            Type::CHPSimulator,
-            seed,
-        );
-
         // 測定bitの生成
         let (mut measurement_qubit_z, mut measurement_qubit_x) =
-            RotatedSurfaceCode::gen_measurement_qubit(distance);
+            Self::gen_measurement_qubit(distance);
         // 測定ビットを効率的に測定できるように並びかえ
         measurement_qubit_x.sort_by(|l, r| match l.1.cmp(&r.1) {
             std::cmp::Ordering::Equal => l.0.cmp(&r.0),
@@ -56,16 +48,14 @@ impl RotatedSurfaceCode {
             }
         }
 
-        // 座標がネットワーク上に存在するかをチェック
-        debug_assert!(measurement_qubit_z
-            .iter()
-            .all(|&coord| network.check_contains(coord)));
-        debug_assert!(measurement_qubit_x
-            .iter()
-            .all(|&coord| network.check_contains(coord)));
-        debug_assert!(data_qubit
-            .iter()
-            .all(|&coord| network.check_contains(coord)));
+        let network = QubitNetwork::new_rotated_planer_lattice_from_vec(
+            data_qubit.clone(),
+            measurement_qubit_z.clone(),
+            measurement_qubit_x.clone(),
+            p,
+            Type::CHPSimulator,
+            seed,
+        );
 
         // syndrome resultを格納する行列
         let syndrome_result_z = (0..round)
@@ -266,6 +256,10 @@ impl RotatedSurfaceCode {
 
     pub fn classical_register(&self) -> &Vec<Vec<Rc<Cell<u8>>>> {
         &self.classical_register
+    }
+
+    pub fn index_to_sim(&self) -> &HashMap<(i32, i32), usize> {
+        &self.network.index_to_sim()
     }
 }
 

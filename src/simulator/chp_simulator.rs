@@ -49,7 +49,7 @@ impl CHPSimulatorCore {
     fn g(&self, x1: u8, z1: u8, x2: u8, z2: u8) -> i8 {
         match (x1, z1, x2, z2) {
             (0, 0, _, _) => 0,
-            (1, 1, _, _) => (z2 - x2) as i8,
+            (1, 1, _, _) => (z2 as i8 - x2 as i8),
             (1, 0, _, _) => z2 as i8 * (2 * x2 as i8 - 1),
             (0, 1, _, _) => x2 as i8 * (1 - 2 * z2 as i8),
             _ => panic!("Tableau parameters must be 0 or 1"),
@@ -73,9 +73,9 @@ impl CHPSimulatorCore {
             + g_sum;
 
         match checker % 4 {
-            2 => self.stabilizer_tableau[[h, self.qubit_num * 2]] = 1,
+            2 | -2 => self.stabilizer_tableau[[h, self.qubit_num * 2]] = 1,
             0 => self.stabilizer_tableau[[h, self.qubit_num * 2]] = 0,
-            _ => panic!("Error at row_sum"),
+            _ => panic!("Error at row_sum value: {}", checker % 4),
         }
 
         let (mut row_h, row_i) = self
@@ -182,7 +182,7 @@ impl SimulatorCore for CHPSimulatorCore {
     fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>) {
         let p = self
             .stabilizer_tableau
-            .slice(s![self.qubit_num..self.qubit_num * 2, a])
+            .slice(s![self.qubit_num.., a])
             .iter()
             .enumerate()
             .filter(|(_, &x)| x == 1)
@@ -191,6 +191,16 @@ impl SimulatorCore for CHPSimulatorCore {
 
         // 一つでもXpa = 1のとき、結果はランダム
         if p.len() != 0 {
+            let p_destabilizer = self
+                .stabilizer_tableau
+                .slice(s![..self.qubit_num, a])
+                .iter()
+                .enumerate()
+                .filter(|(_, &x)| x == 1)
+                .map(|(i, _)| i)
+                .collect::<Vec<usize>>();
+
+            p_destabilizer.iter().for_each(|&i| self.row_sum(i, p[0]));
             p.iter().skip(1).for_each(|&i| self.row_sum(i, p[0]));
 
             // (p[0] - qubit_num) 行目をp[0]行目に置換
@@ -202,6 +212,7 @@ impl SimulatorCore for CHPSimulatorCore {
             for i in q.iter_mut() {
                 *i = 0;
             }
+            q[self.qubit_num + a] = 1;
 
             // rpを1/2でセットし、これが観測結果となる
             if self.rng.gen::<f32>() < 0.5 {
@@ -236,7 +247,7 @@ impl SimulatorCore for CHPSimulatorCore {
     fn measurement_to_zero(&mut self, a: usize) {
         let p = self
             .stabilizer_tableau
-            .slice(s![self.qubit_num..self.qubit_num * 2, a])
+            .slice(s![self.qubit_num.., a])
             .iter()
             .enumerate()
             .filter(|(_, &x)| x == 1)
@@ -245,6 +256,16 @@ impl SimulatorCore for CHPSimulatorCore {
 
         // 一つでもXpa = 1のとき、結果はランダム
         if p.len() != 0 {
+            let p_destabilizer = self
+                .stabilizer_tableau
+                .slice(s![..self.qubit_num, a])
+                .iter()
+                .enumerate()
+                .filter(|(_, &x)| x == 1)
+                .map(|(i, _)| i + self.qubit_num)
+                .collect::<Vec<usize>>();
+
+            p_destabilizer.iter().for_each(|&i| self.row_sum(i, p[0]));
             p.iter().skip(1).for_each(|&i| self.row_sum(i, p[0]));
 
             // (p[0] - qubit_num) 行目をp[0]行目に置換
@@ -256,6 +277,7 @@ impl SimulatorCore for CHPSimulatorCore {
             for i in q.iter_mut() {
                 *i = 0;
             }
+            q[self.qubit_num + a] = 1;
 
             // 必ず0にセット(固有値1)
             self.stabilizer_tableau[[p[0], self.qubit_num * 2]] = 0;
@@ -328,7 +350,6 @@ impl SimulatorInterface for CHPSimulator {
         let Self { core, dispatcher } = self;
 
         for op in dispatcher.operations().iter() {
-            println!("{:?}", op);
             match op {
                 Operation::CX(a, b) => core.cx(*a, *b),
                 Operation::H(a) => core.h(*a),
@@ -339,6 +360,10 @@ impl SimulatorInterface for CHPSimulator {
                 Operation::X(a) => core.x(*a),
                 Operation::Z(a) => core.z(*a),
             }
+            //println!("{:?}", op);
+            //println!("{:#}", core.stabilizer_tableau.slice(s![num.., ..]));
+            //println!("{:#}", core.stabilizer_tableau);
         }
+        //println!("{:#}", core.stabilizer_tableau);
     }
 }

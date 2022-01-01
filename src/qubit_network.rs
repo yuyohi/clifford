@@ -5,7 +5,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::simulator::{self, SimulatorInterface, SimulatorWrapper};
+use crate::simulator::{self, SimulatorInterface, SimulatorWrapper, Type};
 
 pub struct QubitNetwork {
     network: HashMap<(i32, i32), Vec<(i32, i32)>>,
@@ -17,8 +17,8 @@ pub struct QubitNetwork {
 }
 
 impl QubitNetwork {
-    /// rotated surface codeに適したlatticeを作成する
-    pub fn new_rotated_planer_lattice(
+    /// 縦横の大きさからrotated surface codeに適したlatticeを作成する
+    pub fn new_rotated_planer_lattice_from_rectangle(
         vertical: usize,
         horizontal: usize,
         p: f32,
@@ -33,13 +33,40 @@ impl QubitNetwork {
                 qubit_index.push((x, y));
             }
         }
-        // ancilla qubitを追加 (dual lattice)
+        // measurement qubitを追加 (dual lattice)
         for x in (-1..horizontal as i32 * 2 + 1).step_by(2) {
             for y in (-1..vertical as i32 * 2 + 1).step_by(2) {
                 qubit_index.push((x, y));
             }
         }
 
+        Self::new_rotated_planer_lattice(qubit_index, p, sim_type, seed)
+    }
+
+    /// 受け取ったvecを元にrotated surface codeに適したlatticeを作成する
+    pub fn new_rotated_planer_lattice_from_vec(
+        data_qubit: Vec<(i32, i32)>,
+        measurement_qubit_z: Vec<(i32, i32)>,
+        measurement_qubit_x: Vec<(i32, i32)>,
+        p: f32,
+        sim_type: simulator::Type,
+        seed: u64,
+    ) -> Self {
+        let mut qubit_index = Vec::new();
+        qubit_index.extend(data_qubit);
+        qubit_index.extend(measurement_qubit_z);
+        qubit_index.extend(measurement_qubit_x);
+
+        Self::new_rotated_planer_lattice(qubit_index, p, sim_type, seed)
+    }
+
+    /// gen rotated_surface_lattice
+    fn new_rotated_planer_lattice(
+        qubit_index: Vec<(i32, i32)>,
+        p: f32,
+        sim_type: simulator::Type,
+        seed: u64,
+    ) -> Self {
         let mut network = HashMap::new();
 
         // 斜めにedgeを追加
@@ -74,7 +101,7 @@ impl QubitNetwork {
         let mut rng_sim = SmallRng::seed_from_u64(seed + 1);
 
         let sim = match sim_type {
-            CHPSimulator => simulator::SimulatorWrapper::CHPSimulator(
+            Type::CHPSimulator => simulator::SimulatorWrapper::CHPSimulator(
                 simulator::chp_simulator::CHPSimulator::new(qubit_index.len(), rng_sim),
             ),
         };
@@ -83,7 +110,6 @@ impl QubitNetwork {
         for (i, &coord) in qubit_index.iter().enumerate() {
             index_to_sim.insert(coord, i);
         }
-
         QubitNetwork {
             network,
             bit_error_map,
@@ -175,5 +201,10 @@ impl QubitNetwork {
     /// 回路を実行する
     pub fn run(&mut self) {
         self.sim.run();
+    }
+
+    /// get index_to_sim
+    pub fn index_to_sim(&self) -> &HashMap<(i32, i32), usize> {
+        &self.index_to_sim
     }
 }
