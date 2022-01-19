@@ -17,19 +17,48 @@ fn gen_qec_code() {
         .map(|row| row.iter().map(|value| value.get()).collect())
         .collect();
 
-    let rowsum: Vec<u8> = result_vec
+    let row_sum: Vec<u8> = result_vec
         .clone()
         .into_iter()
         .reduce(|row_a, row_b| row_a.iter().zip(row_b.iter()).map(|(&a, &b)| a + b).collect())
         .unwrap();
 
-    //println!("rowsum: {:?}", rowsum);
+    //println!("row_sum: {:?}", row_sum);
 
-    for row in result_vec.iter() {
+    //for row in result_vec.iter() {
         //println!("{:?}", row);
-    }
+    //}
 
-    for value in rowsum {
+    for value in row_sum {
         assert!(value % 2 == 0);
     }
+}
+
+#[test]
+fn test_syndrome() {
+    let distance = 17;
+    let seed = 10;
+    let mut code = RotatedSurfaceCode::new(distance, distance + 1, 0.01, seed);
+
+    code.initialize();
+
+    code.syndrome_measurement();
+
+    code.run()
+}
+
+#[test]
+fn test_decode_scheme() {
+    let distance = 9;
+    let seed = 10;
+    let mut code = RotatedSurfaceCode::new(distance, distance + 1, 0.01, seed);
+
+    code.initialize();
+    code.logical_measurement();
+    code.run();
+    
+    code.decode_mwpm(distance);
+    let ans = code.logical_value();
+
+    println!("{}", ans);
 }

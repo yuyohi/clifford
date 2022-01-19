@@ -11,7 +11,7 @@ pub struct CHPSimulatorCore {
     qubit_num: usize,
     stabilizer_tableau: Array2<u8>,
     rng: rand::rngs::SmallRng,
-    clasical_register: Vec<u8>,
+    classical_register: Vec<u8>,
 }
 
 pub struct CHPSimulator {
@@ -26,7 +26,7 @@ impl CHPSimulator {
             concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
 
         let operations = Vec::new();
-        let clasical_register = vec![0; qubit_num];
+        let classical_register = vec![0; qubit_num];
         let round = 1; // デフォルト値
 
         CHPSimulator {
@@ -34,14 +34,14 @@ impl CHPSimulator {
                 qubit_num,
                 stabilizer_tableau,
                 rng,
-                clasical_register,
+                classical_register,
             },
             dispatcher: Dispatcher::new(operations, round),
         }
     }
 
     pub fn result(&self) -> &Vec<u8> {
-        &self.core.clasical_register
+        &self.core.classical_register
     }
 }
 
@@ -222,7 +222,7 @@ impl SimulatorCore for CHPSimulatorCore {
             }
 
             // 値を格納
-            //self.clasical_register[a] = self.stabilizer_tableau[[p[0], self.qubit_num * 2]];
+            //self.classical_register[a] = self.stabilizer_tableau[[p[0], self.qubit_num * 2]];
             register.set(self.stabilizer_tableau[[p[0], self.qubit_num * 2]]);
             // println!("{}", self.stabilizer_tableau[[p[0], self.qubit_num * 2]]);
         } else {
@@ -237,7 +237,7 @@ impl SimulatorCore for CHPSimulatorCore {
                 .for_each(|(i, _)| self.row_sum_temp(i + self.qubit_num, &mut temp));
 
             // 値を格納
-            //self.clasical_register[a] = temp[self.qubit_num * 2];
+            //self.classical_register[a] = temp[self.qubit_num * 2];
             register.set(temp[self.qubit_num * 2]);
             // println!("{}", temp[self.qubit_num * 2]);
         }
@@ -262,7 +262,7 @@ impl SimulatorCore for CHPSimulatorCore {
                 .iter()
                 .enumerate()
                 .filter(|(_, &x)| x == 1)
-                .map(|(i, _)| i + self.qubit_num)
+                .map(|(i, _)| i)
                 .collect::<Vec<usize>>();
 
             p_destabilizer.iter().for_each(|&i| self.row_sum(i, p[0]));

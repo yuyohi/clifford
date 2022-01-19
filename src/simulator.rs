@@ -1,10 +1,10 @@
 use self::chp_simulator::CHPSimulator;
-use ndarray::prelude::*;
 use std::cell::Cell;
 use std::rc::Rc;
 
 pub mod chp_simulator;
 pub mod core;
+pub mod frame;
 
 /// シミュレータの外部からもアクセスできるオペレーション
 pub trait SimulatorInterface {

@@ -28,3 +28,17 @@ fn make_bell_state() {
 
     println!("{}, {}", count_0 as f32, loop_num as f32);
 }
+
+#[test]
+fn test_h() {
+    let seed = 0;
+    let rng = SmallRng::seed_from_u64(seed);
+    let mut sim = CHPSimulator::new(17, rng);
+
+    sim.add_h(0);
+    sim.add_h(0);
+    sim.add_h(1);
+    sim.add_h(1);
+
+    sim.run();
+}

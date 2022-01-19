@@ -1,5 +1,3 @@
-use ndarray::prelude::*;
-use ndarray::prelude::*;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -180,13 +178,6 @@ impl QubitNetwork {
             register,
         );
     }
-
-    /// arrayに測定結果を格納
-    //pub fn measurement_at_once(&mut self, a: &Vec<(i32, i32)>, register: &mut Array3<u8>) {
-    //    let a = a.iter().map(|coord| self.index_to_sim.get(&coord));
-    //    self.sim
-    //        .add_measurement_at_once(a, result);
-    //}
 
     pub fn measurement_to_zero(&mut self, a: (i32, i32)) {
         self.sim
