@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::simulator::{self, SimulatorInterface, SimulatorWrapper, Type};
+use crate::noise::noise_model::NoiseType;
 
 pub struct QubitNetwork {
     network: HashMap<(i32, i32), Vec<(i32, i32)>>,
@@ -12,6 +13,7 @@ pub struct QubitNetwork {
     index_to_sim: HashMap<(i32, i32), usize>,
     sim: SimulatorWrapper,
     rng: rand::rngs::SmallRng,
+    error_rate: f32,
 }
 
 impl QubitNetwork {
@@ -115,6 +117,7 @@ impl QubitNetwork {
             index_to_sim,
             sim,
             rng,
+            error_rate: p,
         }
     }
 
@@ -179,9 +182,15 @@ impl QubitNetwork {
         );
     }
 
+    /// measurement to zero
     pub fn measurement_to_zero(&mut self, a: (i32, i32)) {
         self.sim
             .add_measurement_to_zero(*self.index_to_sim.get(&a).expect("index does not exist"));
+    }
+
+    pub fn insert_noise(&mut self, a: (i32, i32), noise_type: NoiseType) {
+        self.sim
+            .add_noise(*self.index_to_sim.get(&a).expect("index does not exist"), noise_type)
     }
 
     /// 指定された座標がネットワークに存在するかを判定する
@@ -197,5 +206,10 @@ impl QubitNetwork {
     /// get index_to_sim
     pub fn index_to_sim(&self) -> &HashMap<(i32, i32), usize> {
         &self.index_to_sim
+    }
+
+    /// return error rate
+    pub fn error_rate(&self) -> f32 {
+        self.error_rate
     }
 }

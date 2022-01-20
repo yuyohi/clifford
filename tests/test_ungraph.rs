@@ -7,7 +7,8 @@ use std::rc::Rc;
 fn iterate_ungraph() {
     let edges = [((1, 1, 0), (1, 1, 1)), ((1, 1, 0), (2, 2, 0))];
     let round = 2;
-    let mut g = UnGraph::from_edges(&edges, round);
+    let seed = 0;
+    let mut g = UnGraph::from_edges(&edges, round, seed);
     g.set_classical_register((1, 1, 0), Rc::new(Cell::new(0)));
     g.set_classical_register((1, 1, 1), Rc::new(Cell::new(0)));
     g.set_classical_register((2, 2, 0), Rc::new(Cell::new(0)));

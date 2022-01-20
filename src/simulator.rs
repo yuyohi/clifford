@@ -1,4 +1,5 @@
 use self::chp_simulator::CHPSimulator;
+use crate::noise::noise_model::NoiseType;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -32,11 +33,15 @@ pub trait SimulatorInterface {
     /// add measurement coercion to zero
     fn add_measurement_to_zero(&mut self, a: usize);
 
+    /// add noise
+    fn add_noise(&mut self, a: usize, noise_type: NoiseType);
+
     /// add Reset stabilizer tableau
     fn reset(&mut self);
 
     /// add run circuit
     fn run(&mut self);
+
 }
 
 pub enum SimulatorWrapper {
@@ -86,6 +91,12 @@ impl SimulatorInterface for SimulatorWrapper {
         }
     }
 
+    fn add_noise(&mut self, a: usize, noise_type: NoiseType) {
+        match *self {
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_noise(a, noise_type),
+        }
+    }
+
     fn reset(&mut self) {
         match *self {
             SimulatorWrapper::CHPSimulator(ref mut sim) => sim.reset(),
@@ -108,6 +119,7 @@ pub enum Operation {
     Z(usize),
     M(usize, Rc<Cell<u8>>),
     MToZero(usize),
+    Depolarizing(usize, f32),
     //MAll(char)
 }
 

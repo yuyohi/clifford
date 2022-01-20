@@ -1,11 +1,10 @@
-use crate::qubit_graph::ungraph::{self, UnGraph};
+use crate::qubit_graph::ungraph::UnGraph;
 
 use itertools::Itertools;
 use petgraph::algo::matching;
 use petgraph::graphmap::GraphMap;
 use petgraph::graphmap::UnGraphMap;
 use petgraph::Undirected;
-use ndarray::prelude::*;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::collections::HashMap;
@@ -76,7 +75,12 @@ pub fn local_dijkstra(
             if visited.contains(&coord) {
                 continue;
             }
-            if graph.classical_register(&coord).unwrap().get() == 1 {
+            if graph
+                .classical_register(&coord)
+                .unwrap_or_else(|| panic!("{:?} isn't exist", coord))
+                .get()
+                == 1
+            {
                 m_nearest_node.push(State {
                     distance,
                     coord,

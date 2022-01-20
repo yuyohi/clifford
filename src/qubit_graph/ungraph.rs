@@ -2,6 +2,7 @@ use itertools::Itertools;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 #[derive(Debug)]
 struct ClassicalRegister {
@@ -12,7 +13,7 @@ struct ClassicalRegister {
 impl ClassicalRegister {
     fn new(round: usize) -> Self {
         let coord_to_index = HashMap::new();
-        let register = vec![Vec::new(); round];
+        let register = vec![Vec::new(); round + 1];
 
         Self {
             coord_to_index,
@@ -46,6 +47,16 @@ impl ClassicalRegister {
             hash_iter: self.coord_to_index.iter(),
         }
     }
+
+    /// iterate only value
+    fn iter_value(&self) -> core::slice::Iter<Vec<Rc<Cell<u8>>>> {
+        self.register.iter()
+    }
+
+    /// insert or set
+    fn entry_or_insert(&mut self, coord: (i32, i32, i32)) {
+        //self.coord_to_index
+    }
 }
 
 pub struct Iter<'a> {
@@ -74,26 +85,30 @@ pub struct UnGraph {
     edge_weight: HashMap<((i32, i32, i32), (i32, i32, i32)), f32>,
     node_is_boundary: HashMap<(i32, i32, i32), bool>,
     classical_register: ClassicalRegister,
+    rng: rand::rngs::SmallRng,
 }
 
 impl UnGraph {
-    pub fn new(round: usize) -> Self {
+    pub fn new(round: usize, seed: u64) -> Self {
         let network = HashMap::new();
         let edge_weight = HashMap::new();
         let node_is_boundary = HashMap::new();
         let classical_register = ClassicalRegister::new(round);
+        let rng = SmallRng::seed_from_u64(seed);
 
         Self {
             network,
             edge_weight,
             node_is_boundary,
             classical_register,
+            rng,
         }
     }
 
     /// make graph from edges
-    pub fn from_edges(edges: &[((i32, i32, i32), (i32, i32, i32))], round: usize) -> Self {
+    pub fn from_edges(edges: &[((i32, i32, i32), (i32, i32, i32))], round: usize, seed: u64) -> Self {
         let mut network = HashMap::new();
+        let classical_register = ClassicalRegister::new(round);
 
         for &(u, v) in edges {
             network.entry(u).or_insert_with(|| vec![]).push(v);
@@ -102,13 +117,14 @@ impl UnGraph {
 
         let edge_weight = HashMap::new();
         let node_is_boundary = HashMap::new();
-        let classical_register = ClassicalRegister::new(round);
+        let rng = SmallRng::seed_from_u64(seed);
 
         Self {
             network,
             edge_weight,
             node_is_boundary,
             classical_register,
+            rng,
         }
     }
 
@@ -228,6 +244,15 @@ impl UnGraph {
                 .iter()
                 .zip(back.iter())
                 .for_each(|(f, b)| f.set(f.get() ^ b.get()))
+        }
+    }
+
+    /// 測定エラーを挿入
+    pub fn insert_measurement_error(&mut self, error_rate: f32) {
+        for value in self.classical_register.iter_value().flatten() {
+            if self.rng.gen::<f32>() < error_rate {
+                value.set(value.get() ^ 1);
+            }
         }
     }
 

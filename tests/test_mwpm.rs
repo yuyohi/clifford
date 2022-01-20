@@ -17,7 +17,7 @@ fn test_local_dijkstra() {
         ((10, 10, 0), (1, 1, 0)),
         ((5, 5, 0), (4, 4, 0)),
     ];
-    let mut graph = UnGraph::from_edges(&v);
+    let mut graph = UnGraph::from_edges(&v, 1, 0);
     for (i, edge) in v.iter().enumerate() {
         graph.set_edge_weight(edge, i as f32);
     }

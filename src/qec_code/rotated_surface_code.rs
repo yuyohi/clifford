@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::decoder::mwpm;
+use crate::noise::noise_model::NoiseType;
 use crate::qubit_graph::ungraph::UnGraph;
 use crate::qubit_network::QubitNetwork;
 use crate::simulator::{frame::PauliFrame, Type};
@@ -21,6 +22,7 @@ pub struct RotatedSurfaceCode {
     measurement_graph_z: UnGraph,
     measurement_graph_x: UnGraph,
     pauli_frame: PauliFrame,
+    error_rate: f32,
 }
 
 impl RotatedSurfaceCode {
@@ -66,9 +68,9 @@ impl RotatedSurfaceCode {
 
         // make syndrome graph
         let measurement_graph_z =
-            Self::gen_measurement_graph(&measurement_qubit_z, round, distance, 'Z', p);
+            Self::gen_measurement_graph(&measurement_qubit_z, round, distance, 'Z', p, seed);
         let measurement_graph_x =
-            Self::gen_measurement_graph(&measurement_qubit_x, round, distance, 'X', p);
+            Self::gen_measurement_graph(&measurement_qubit_x, round, distance, 'X', p, seed);
 
         // make pauli frame
         let pauli_frame = PauliFrame::new_rotated_surface_code(distance);
@@ -84,6 +86,7 @@ impl RotatedSurfaceCode {
             measurement_graph_z,
             measurement_graph_x,
             pauli_frame,
+            error_rate: p,
         }
     }
 
@@ -138,8 +141,9 @@ impl RotatedSurfaceCode {
         distance: usize,
         mode: char,
         p: f32,
+        seed: u64,
     ) -> UnGraph {
-        let mut network = UnGraph::new(round);
+        let mut network = UnGraph::new(round, seed);
         let direction = [(2, 2), (-2, 2)];
         let boundary_direction = [(2, 2), (-2, 2), (-2, -2), (2, -2)];
 
@@ -264,6 +268,8 @@ impl RotatedSurfaceCode {
             ..
         } = self;
 
+        let noise_type = NoiseType::Depolarizing(network.error_rate());
+
         let x_order = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
         let z_order = [(1, 1), (-1, 1), (1, -1), (-1, -1)];
 
@@ -271,6 +277,7 @@ impl RotatedSurfaceCode {
             // XスタビライザーにHゲートを作用させる
             for &x_stab in measurement_qubit_x.iter() {
                 network.h(x_stab);
+                network.insert_noise(x_stab, noise_type);
             }
 
             // CNOT
@@ -282,9 +289,13 @@ impl RotatedSurfaceCode {
                     // data bitが存在するときのみCNOT
                     if data_qubit.contains(&coord_data_z) {
                         network.cx(coord_data_z, *z_stab);
+                        network.insert_noise(*z_stab, noise_type);
+                        network.insert_noise(coord_data_z, noise_type);
                     }
                     if data_qubit.contains(&coord_data_x) {
                         network.cx(*x_stab, coord_data_x);
+                        network.insert_noise(*x_stab, noise_type);
+                        network.insert_noise(coord_data_x, noise_type);
                     }
                 }
             }
@@ -292,6 +303,7 @@ impl RotatedSurfaceCode {
             // XスタビライザーにHゲートを作用させる
             for &x_stab in measurement_qubit_x.iter() {
                 network.h(x_stab);
+                network.insert_noise(x_stab, noise_type);
             }
 
             // measurement qubitの測定
@@ -416,6 +428,9 @@ impl RotatedSurfaceCode {
 
     /// decode by mwpm
     pub fn decode_mwpm(&mut self, m: usize) {
+        Self::insert_measurement_error(&mut self.measurement_graph_z, self.error_rate);
+        Self::insert_measurement_error(&mut self.measurement_graph_x, self.error_rate);
+
         Self::xor_syndrome(&mut self.measurement_graph_z);
         Self::xor_syndrome(&mut self.measurement_graph_x);
 
@@ -467,6 +482,11 @@ impl RotatedSurfaceCode {
         measurement_graph.xor_to_last_time()
     }
 
+    /// 測定結果にerrorを挿入
+    fn insert_measurement_error(measurement_graph: &mut UnGraph, error_rate: f32) {
+        measurement_graph.insert_measurement_error(error_rate);
+    }
+
     /// run circuit
     pub fn run(&mut self) {
         self.network.run();
@@ -498,6 +518,7 @@ mod test {
     fn test_gen_measurement_graph() {
         let distance = 3;
         let code = super::RotatedSurfaceCode::new(distance, distance + 2, 0.01, 0);
+        let seed = 0;
 
         super::RotatedSurfaceCode::gen_measurement_graph(
             &code.measurement_qubit_z,
@@ -505,6 +526,7 @@ mod test {
             distance,
             'Z',
             0.01,
+            seed,
         );
     }
 }

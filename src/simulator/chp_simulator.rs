@@ -2,6 +2,7 @@ use super::{
     core::{Dispatcher, SimulatorCore},
     Operation, SimulatorInterface,
 };
+use crate::noise::noise_model::NoiseType;
 use ndarray::*;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use std::cell::Cell;
@@ -294,6 +295,22 @@ impl SimulatorCore for CHPSimulatorCore {
         }
     }
 
+    /// insert depolarizing noise
+    fn depolarizing(&mut self, a: usize, p: f32) {
+        if self.rng.gen::<f32>() < p {
+            // insert noise
+            match self.rng.gen::<f32>() {
+                x if (0.0..1.0 / 3.0).contains(&x) => self.z(a),        // Z error
+                x if (1.0 / 3.0..2.0 / 3.0).contains(&x) => self.x(a),  // X error
+                x if (2.0 / 3.0..1.0).contains(&x) => {                 // Y error
+                    self.x(a);
+                    self.z(a);
+                }
+                _ => panic!("rng must be 0.0..1.0"),
+            }
+        }
+    }
+
     fn reset(&mut self) {
         let size = self.qubit_num * 2;
         self.stabilizer_tableau = concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
@@ -340,6 +357,12 @@ impl SimulatorInterface for CHPSimulator {
         self.dispatcher.push(Operation::MToZero(a));
     }
 
+    fn add_noise(&mut self, a: usize, noise_type: NoiseType) {
+        match noise_type {
+            NoiseType::Depolarizing(p) => self.dispatcher.push(Operation::Depolarizing(a, p)),
+        }
+    }
+
     /// Reset stabilizer tableau
     fn reset(&mut self) {
         self.core.reset();
@@ -353,7 +376,8 @@ impl SimulatorInterface for CHPSimulator {
             match op {
                 Operation::CX(a, b) => core.cx(*a, *b),
                 Operation::H(a) => core.h(*a),
-                //Operation::MAll(c) => ,
+                Operation::Depolarizing(a, p) => core.depolarizing(*a, *p),
+                //Operation::MAll(c) =
                 Operation::M(a, register) => core.measurement(*a, register),
                 Operation::MToZero(a) => core.measurement_to_zero(*a),
                 Operation::S(a) => core.s(*a),

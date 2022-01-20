@@ -35,6 +35,9 @@ pub trait SimulatorCore {
 
     ///reset
     fn reset(&mut self);
+
+    /// depolarizing noise channel
+    fn depolarizing(&mut self, a: usize, p: f32);
 }
 
 impl Dispatcher {
