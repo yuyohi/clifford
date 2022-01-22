@@ -155,10 +155,9 @@ fn construct_syndrome_graph(
 }
 
 fn minimum_weight_perfect_matching(
-    (local_graph, path_detail): (
-        GraphMap<(i32, i32, i32), f32, Undirected>,
-        HashMap<((i32, i32, i32), (i32, i32, i32)), Vec<(i32, i32, i32)>>,
-    ),
+    graph: &UnGraph,
+    local_graph: GraphMap<(i32, i32, i32), f32, Undirected>,
+    path_detail: HashMap<((i32, i32, i32), (i32, i32, i32)), Vec<(i32, i32, i32)>>,
 ) -> Vec<(i32, i32)> {
     let matching = matching::maximum_matching(&local_graph);
 
@@ -166,15 +165,27 @@ fn minimum_weight_perfect_matching(
 
     // 空間方向にedgeが存在するものだけを抽出
     for (u, v) in matching.edges() {
+        // println!("edge {:?}, {:?}", u, v);
         if (u.0 != v.0) || (u.1 != v.1) {
             let correction_path = path_detail
                 .get(&(u, v))
                 .unwrap_or_else(|| panic!("edge: {:?} is not exist", (u, v)));
 
+            // debug
+            /* 
+            let weight: f32 = correction_path
+                .iter()
+                .tuple_windows()
+                .map(|(&u, &v)| graph.edge_weight(&(u, v)).unwrap())
+                .sum();
+
+            println!("correction path: {:?}, weight: {}", correction_path, weight); */
+
             correction_path
                 .into_iter()
                 .tuple_windows()
                 .filter(|(&u, &v)| (u.0 != v.0) || (u.1 != v.1))
+                .filter(|(u, v)| !(graph.is_boundary(u).unwrap() && graph.is_boundary(v).unwrap()))
                 .for_each(|(&u, &v)| correction_qubit.push(UnGraph::edge_to_qubit((u, v))));
         }
     }
@@ -183,5 +194,6 @@ fn minimum_weight_perfect_matching(
 
 /// decode
 pub fn decode(graph: &UnGraph, m: usize) -> Vec<(i32, i32)> {
-    minimum_weight_perfect_matching(construct_syndrome_graph(graph, m))
+    let (local_graph, path_detail) = construct_syndrome_graph(graph, m);
+    minimum_weight_perfect_matching(graph, local_graph, path_detail)
 }

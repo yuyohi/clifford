@@ -143,7 +143,6 @@ impl QubitNetwork {
     /// CNOT gate
     pub fn cx(&mut self, a: (i32, i32), b: (i32, i32)) {
         debug_assert!(self.connection_error_map.contains_key(&(a, b)));
-
         self.sim.add_cx(
             *self.index_to_sim.get(&a).expect("index does not exist"),
             *self.index_to_sim.get(&b).expect("index does not exist"),
@@ -175,10 +174,20 @@ impl QubitNetwork {
     }
 
     /// measurement
-    pub fn measurement(&mut self, a: (i32, i32), register: Rc<Cell<u8>>) {
+    pub fn measurement(&mut self, a: (i32, i32), register: Rc<Cell<u8>>, error_rate: f32) {
         self.sim.add_measurement(
             *self.index_to_sim.get(&a).expect("index does not exist"),
             register,
+            error_rate,
+        );
+    }
+
+    ///measurement direct
+    pub fn measurement_direct(&mut self, a: (i32, i32), register: Rc<Cell<u8>>, error_rate: f32) {
+        self.sim.measurement(
+            *self.index_to_sim.get(&a).expect("index does not exist"),
+            register,
+            error_rate,
         );
     }
 
@@ -186,6 +195,15 @@ impl QubitNetwork {
     pub fn measurement_to_zero(&mut self, a: (i32, i32)) {
         self.sim
             .add_measurement_to_zero(*self.index_to_sim.get(&a).expect("index does not exist"));
+    }
+
+    /// measurement and reset
+    pub fn measurement_and_reset(&mut self, a: (i32, i32), register: Rc<Cell<u8>>, error_rate: f32) {
+        self.sim.add_measurement_and_reset(
+            *self.index_to_sim.get(&a).expect("index does not exist"),
+            register,
+            error_rate,
+        );
     }
 
     pub fn insert_noise(&mut self, a: (i32, i32), noise_type: NoiseType) {
@@ -211,5 +229,10 @@ impl QubitNetwork {
     /// return error rate
     pub fn error_rate(&self) -> f32 {
         self.error_rate
+    }
+
+    /// reset tableau
+    pub fn reset(&mut self) {
+        self.sim.reset();
     }
 }

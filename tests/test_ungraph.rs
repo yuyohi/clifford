@@ -17,3 +17,27 @@ fn iterate_ungraph() {
         println!("{:?}, {:?}", i.0, i.1);
     }
 }
+
+#[test]
+fn test_xor() {
+    let edges = [
+        ((1, 1, 0), (1, 1, 1)),
+        ((1, 1, 1), (1, 1, 2)),
+        ((1, 1, 2), (1, 1, 3)),
+        ((1, 1, 3), (1, 1, 4)),
+        ((1, 1, 4), (1, 1, 5)),
+    ];
+
+    let round = 6;
+    let seed = 0;
+    let mut g = UnGraph::from_edges(&edges, round, seed);
+
+    for i in 0..6 {
+        g.set_classical_register((1, 1, i), Rc::new(Cell::new(1)));
+    }
+
+    g.show_all_defect();
+    g.xor_to_last_time();
+    g.show_all_defect();
+
+}

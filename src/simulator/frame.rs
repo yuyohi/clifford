@@ -35,5 +35,12 @@ impl PauliFrame {
     pub fn x_frame_mut(&mut self) -> ArrayViewMut2<u8> {
         self.x_frame.view_mut()
     }
+
+    /// reset frame
+    pub fn reset(&mut self) {
+        let shape = (self.z_frame.shape()[0], self.z_frame.shape()[1]);
+        self.z_frame = Array::zeros(shape);
+        self.x_frame = Array::zeros(shape);
+    }
     
 }

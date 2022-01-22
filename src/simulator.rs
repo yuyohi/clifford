@@ -25,13 +25,16 @@ pub trait SimulatorInterface {
     fn add_z(&mut self, a: usize);
 
     /// add measurement
-    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>);
+    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32);
 
     // add measurement as once
     //fn add_measurement_at_once(&mut self, a: Vec<usize>, register: &mut Array3<u8>);
 
     /// add measurement coercion to zero
     fn add_measurement_to_zero(&mut self, a: usize);
+
+    /// add measurement_and_reset
+    fn add_measurement_and_reset(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32);
 
     /// add noise
     fn add_noise(&mut self, a: usize, noise_type: NoiseType);
@@ -41,6 +44,9 @@ pub trait SimulatorInterface {
 
     /// add run circuit
     fn run(&mut self);
+
+    /// direct measurement
+    fn measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32);
 
 }
 
@@ -79,15 +85,27 @@ impl SimulatorInterface for SimulatorWrapper {
         };
     }
 
-    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>) {
+    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
         match *self {
-            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_measurement(a, register),
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_measurement(a, register, error_rate),
         }
     }
 
     fn add_measurement_to_zero(&mut self, a: usize) {
         match *self {
             SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_measurement_to_zero(a),
+        }
+    }
+
+    fn add_measurement_and_reset(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+        match *self {
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_measurement_and_reset(a, register, error_rate),
+        }
+    }
+
+    fn measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+        match *self {
+            SimulatorWrapper::CHPSimulator(ref mut sim) => sim.measurement(a, register, error_rate),
         }
     }
 
@@ -117,7 +135,8 @@ pub enum Operation {
     S(usize),
     X(usize),
     Z(usize),
-    M(usize, Rc<Cell<u8>>),
+    M(usize, Rc<Cell<u8>>, f32),
+    MR(usize, Rc<Cell<u8>>, f32),
     MToZero(usize),
     Depolarizing(usize, f32),
     //MAll(char)

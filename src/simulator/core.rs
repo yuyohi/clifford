@@ -26,12 +26,13 @@ pub trait SimulatorCore {
     fn z(&mut self, a: usize);
 
     /// measurement
-    fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>);
-
-    // measure as once
-    //fn measurement_at_once(&mut self, a: Vec<usize>, register: &mut Array3<u8>);
+    /// if measurement error occurs return true, otherwise return false 
+    fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f32) -> bool;
 
     fn measurement_to_zero(&mut self, a: usize);
+
+    /// measurement and reset
+    fn measurement_and_reset(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f32);
 
     ///reset
     fn reset(&mut self);

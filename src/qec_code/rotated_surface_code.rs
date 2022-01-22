@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use ndarray::prelude::*;
 use rand::{self, Rng};
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -23,10 +22,11 @@ pub struct RotatedSurfaceCode {
     measurement_graph_x: UnGraph,
     pauli_frame: PauliFrame,
     error_rate: f32,
+    measurement_error_rate: f32,
 }
 
 impl RotatedSurfaceCode {
-    pub fn new(distance: usize, round: usize, p: f32, seed: u64) -> Self {
+    pub fn new(distance: usize, round: usize, p: f32, p_m: f32, seed: u64) -> Self {
         if distance % 2 == 0 {
             panic!("distance must be odd number.");
         }
@@ -87,6 +87,7 @@ impl RotatedSurfaceCode {
             measurement_graph_x,
             pauli_frame,
             error_rate: p,
+            measurement_error_rate: p_m,
         }
     }
 
@@ -147,23 +148,63 @@ impl RotatedSurfaceCode {
         let direction = [(2, 2), (-2, 2)];
         let boundary_direction = [(2, 2), (-2, 2), (-2, -2), (2, -2)];
 
-        for t in 0..round as i32 {
-            let mut edges = Vec::new();
+        let mut edges = Vec::new();
 
-            // 通常のedgeを追加
-            for u in measurement_qubit.iter() {
-                for d in direction.iter() {
-                    match (u.0 + d.0, u.1 + d.1) {
-                        v if measurement_qubit.contains(&v) => {
-                            let start = (u.0, u.1, t);
-                            let end = (v.0, v.1, t);
-                            edges.push((start, end));
-                        }
-                        _ => (),
+        // 通常のedgeを追加
+        for &u in measurement_qubit.iter() {
+            for d in direction.iter() {
+                match (u.0 + d.0, u.1 + d.1) {
+                    v if measurement_qubit.contains(&v) => {
+                        edges.push((u, v));
+                    }
+                    _ => (),
+                }
+            }
+        }
+
+        // boundary nodeを追加
+        let boundary_num = (distance / 2 + 1) as i32;
+        let mut boundary_node = Vec::new();
+
+        match mode {
+            'Z' => {
+                let x_start_list = [-1, 1];
+                let height = (distance - 1) * 2;
+                let y_list = [-1, height as i32 + 1];
+                for (y, x_start) in y_list.iter().zip(x_start_list.iter()) {
+                    for i in 0..boundary_num {
+                        let x = x_start + 4 * i;
+                        boundary_node.push((x, *y))
                     }
                 }
             }
+            'X' => {
+                let y_start_list = [1, -1];
+                let width = (distance - 1) * 2;
+                let x_references = [-1, width as i32 + 1];
+                for (x, y_start) in x_references.iter().zip(y_start_list.iter()) {
+                    for i in 0..boundary_num {
+                        let y = y_start + 4 * i;
+                        boundary_node.push((*x, y))
+                    }
+                }
+            }
+            _ => panic!("Invalid mode"),
+        }
 
+        // boundary nodeと普通のnodeを結ぶ
+        for &u in boundary_node.iter() {
+            for d in boundary_direction.iter() {
+                match (u.0 + d.0, u.1 + d.1) {
+                    v if measurement_qubit.contains(&v) => {
+                        edges.push((u, v));
+                    }
+                    _ => (),
+                }
+            }
+        }
+
+        for t in 0..round as i32 {
             // 次のroundの同座標に対するedgeを追加
             let mut time_edge = Vec::new();
             for &(x, y) in measurement_qubit.iter() {
@@ -178,80 +219,58 @@ impl RotatedSurfaceCode {
                     .collect();
                 network.add_edges_from(&time_boundary_edge);
                 network.set_edges_weight(&time_boundary_edge, 0.0);
+
+                // 時間のboundaryと空間のboundaryを繋ぐ
+                let t_boundary_to_boundary = (
+                    (measurement_qubit[0].0, measurement_qubit[0].1, t + 1),
+                    (boundary_node[0].0, boundary_node[0].1, t),
+                );
+                network.add_edge_from(&t_boundary_to_boundary);
+                network.set_edge_weight(&t_boundary_to_boundary, 0.0);
             }
+
             network.add_edges_from(&time_edge);
             network.set_edges_weight(&time_edge, p);
 
-            // boundary nodeを追加
-            let boundary_num = (distance / 2 + 1) as i32;
-            let mut boundary_node = Vec::new();
-
-            match mode {
-                'Z' => {
-                    let x_start_list = [-1, 1];
-                    let height = (distance - 1) * 2;
-                    let y_list = [-1, height as i32 + 1];
-                    for (y, x_start) in y_list.iter().zip(x_start_list.iter()) {
-                        for i in 0..boundary_num {
-                            let x = x_start + 4 * i;
-                            boundary_node.push((x, *y, t))
-                        }
-                    }
-                }
-                'X' => {
-                    let y_start_list = [1, -1];
-                    let width = (distance - 1) * 2;
-                    let x_references = [-1, width as i32 + 1];
-                    for (x, y_start) in x_references.iter().zip(y_start_list.iter()) {
-                        for i in 0..boundary_num {
-                            let y = y_start + 4 * i;
-                            boundary_node.push((*x, y, t))
-                        }
-                    }
-                }
-                _ => panic!("Invalid mode"),
+            for &((u_x, u_y), (v_x, v_y)) in edges.iter() {
+                network.add_edge_from(&((u_x, u_y, t), (v_x, v_y, t)));
+                network.set_edge_weight(&((u_x, u_y, t), (v_x, v_y, t)), p);
             }
-
-            // boundary nodeと普通のnodeを結ぶ
-            for u in boundary_node.iter() {
-                for d in boundary_direction.iter() {
-                    match (u.0 + d.0, u.1 + d.1) {
-                        v if measurement_qubit.contains(&v) => {
-                            let start = *u;
-                            let end = (v.1, v.1, t);
-                            edges.push((start, end));
-                        }
-                        _ => (),
-                    }
-                }
-            }
-            network.add_edges_from(&edges);
-            network.set_edges_weight(&edges, p);
 
             // boundary node 同士をweight0のedgeで繋ぐ
             let boundary_edge: Vec<_> = boundary_node
                 .iter()
                 .tuple_windows()
-                .map(|(&u, &v)| (u, v))
+                .map(|(&u, &v)| ((u.0, u.1, t), (v.0, v.1, t)))
                 .collect();
             network.add_edges_from(&boundary_edge);
             network.set_edges_weight(&boundary_edge, 0.0);
 
-            // boundaryかどうかを設定
+            // 最後のround以外は次のboundary nodeとも繋ぐ
+            if t != (round as i32 - 1) {
+                for &(x, y) in boundary_node.iter() {
+                    let edge = ((x, y, t), (x, y, t + 1));
+                    network.add_edge_from(&edge);
+                    network.set_edge_weight(&edge, 0.0)
+                }
+            }
+
+            // boundaryかどうかとregisterを設定
             for &(x, y) in measurement_qubit.iter() {
                 network.set_is_boundary((x, y, t), false);
+                network.set_classical_register((x, y, t), Rc::new(Cell::new(0))); // 順番が大事
                 if t == (round as i32 - 1) {
                     // 最後のroundでは、時間方向のboundaryを設定
                     network.set_is_boundary((x, y, t + 1), true);
+                    network.set_classical_register((x, y, t + 1), Rc::new(Cell::new(0)));
                 }
             }
-            network.set_all_is_boundary(&boundary_node, true);
-
-            // classical registerを設定 tが変わっても同じ順番で並べることが重要
-            for &(x, y) in measurement_qubit.iter() {
+            for &(x, y) in boundary_node.iter() {
+                network.set_is_boundary((x, y, t), true);
                 network.set_classical_register((x, y, t), Rc::new(Cell::new(0)));
             }
         }
+
         network
     }
 
@@ -270,6 +289,13 @@ impl RotatedSurfaceCode {
 
         let noise_type = NoiseType::Depolarizing(network.error_rate());
 
+        // 仮 現象論的ノイズ
+        /*
+        for c in data_qubit.iter() {
+            network.insert_noise(*c, noise_type);
+        }
+        */
+
         let x_order = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
         let z_order = [(1, 1), (-1, 1), (1, -1), (-1, -1)];
 
@@ -277,7 +303,7 @@ impl RotatedSurfaceCode {
             // XスタビライザーにHゲートを作用させる
             for &x_stab in measurement_qubit_x.iter() {
                 network.h(x_stab);
-                network.insert_noise(x_stab, noise_type);
+                network.insert_noise(x_stab, noise_type); // circuit noise
             }
 
             // CNOT
@@ -289,12 +315,12 @@ impl RotatedSurfaceCode {
                     // data bitが存在するときのみCNOT
                     if data_qubit.contains(&coord_data_z) {
                         network.cx(coord_data_z, *z_stab);
-                        network.insert_noise(*z_stab, noise_type);
+                        network.insert_noise(*z_stab, noise_type); // circuit noise
                         network.insert_noise(coord_data_z, noise_type);
                     }
                     if data_qubit.contains(&coord_data_x) {
                         network.cx(*x_stab, coord_data_x);
-                        network.insert_noise(*x_stab, noise_type);
+                        network.insert_noise(*x_stab, noise_type); // circuit noise
                         network.insert_noise(coord_data_x, noise_type);
                     }
                 }
@@ -303,22 +329,24 @@ impl RotatedSurfaceCode {
             // XスタビライザーにHゲートを作用させる
             for &x_stab in measurement_qubit_x.iter() {
                 network.h(x_stab);
-                network.insert_noise(x_stab, noise_type);
+                network.insert_noise(x_stab, noise_type); // circuit noise
             }
 
             // measurement qubitの測定
             // Z
             for &(x, y) in measurement_qubit_z.iter() {
-                network.measurement(
+                network.measurement_and_reset(
                     (x, y),
                     Rc::clone(measurement_graph_z.classical_register(&(x, y, t)).unwrap()),
+                    self.measurement_error_rate,
                 );
             }
             // X
             for &(x, y) in measurement_qubit_x.iter() {
-                network.measurement(
+                network.measurement_and_reset(
                     (x, y),
                     Rc::clone(measurement_graph_x.classical_register(&(x, y, t)).unwrap()),
+                    self.measurement_error_rate,
                 );
             }
         }
@@ -364,7 +392,7 @@ impl RotatedSurfaceCode {
     }
 
     /// logical z measurement
-    pub fn logical_measurement(&mut self) {
+    fn logical_measurement(&mut self) {
         let Self {
             network,
             data_qubit,
@@ -376,9 +404,10 @@ impl RotatedSurfaceCode {
             debug_assert!(x >= 0, "data coord must not be negative number");
             debug_assert!(y >= 0, "data coord must not be negative number");
 
-            network.measurement(
+            network.measurement_direct(
                 (x, y),
                 Rc::clone(&classical_register[(x / 2) as usize][(y / 2) as usize]),
+                0.0,
             );
         }
     }
@@ -400,6 +429,7 @@ impl RotatedSurfaceCode {
 
     /// return logical value
     pub fn logical_value(&mut self) -> u8 {
+        self.logical_measurement();
         self.correct_z_error();
 
         let result = self.classical_register();
@@ -422,74 +452,95 @@ impl RotatedSurfaceCode {
         match logical_value {
             n if n == self.distance => 1,
             0 => 0,
-            _ => panic!("correction error"),
+            _ => u8::MAX,
         }
     }
 
     /// decode by mwpm
     pub fn decode_mwpm(&mut self, m: usize) {
-        Self::insert_measurement_error(&mut self.measurement_graph_z, self.error_rate);
-        Self::insert_measurement_error(&mut self.measurement_graph_x, self.error_rate);
+        self.measurement_graph_z.xor_to_last_time();
+        self.measurement_graph_x.xor_to_last_time();
 
-        Self::xor_syndrome(&mut self.measurement_graph_z);
-        Self::xor_syndrome(&mut self.measurement_graph_x);
+        // self.measurement_graph_z.show_all_defect();
+        // self.measurement_graph_x.show_all_defect();
 
-        Self::flip_defect(&mut self.measurement_graph_z);
-        Self::flip_defect(&mut self.measurement_graph_x);
+        Self::flip_defect(&mut self.measurement_graph_z, self.distance);
+        Self::flip_defect(&mut self.measurement_graph_x, self.distance);
+
+        // self.measurement_graph_z.show_all_defect();
+        // self.measurement_graph_x.show_all_defect();
 
         let correction_qubit_z = mwpm::decode(&self.measurement_graph_x, m);
         let correction_qubit_x = mwpm::decode(&self.measurement_graph_z, m);
 
+        // println!("correction_qubit_x {:?}", correction_qubit_x);
+        // println!("correction_qubit_z {:?}", correction_qubit_z);
+
         // pauli frameに設定
         let mut z_frame = self.pauli_frame.z_frame_mut();
         for (x, y) in correction_qubit_z.into_iter() {
-            debug_assert!(x % 2 == 0, "data coord must not be odd number");
-            debug_assert!(y % 2 == 0, "data coord must not be odd number");
-            z_frame[(x as usize, y as usize)] ^= 1;
+            debug_assert!(
+                x % 2 == 0,
+                "data coord must not be odd number x: {:?}",
+                (x, y)
+            );
+            debug_assert!(
+                y % 2 == 0,
+                "data coord must not be odd number y: {:?}",
+                (x, y)
+            );
+            z_frame[((x / 2) as usize, (y / 2) as usize)] ^= 1;
         }
         let mut x_frame = self.pauli_frame.x_frame_mut();
         for (x, y) in correction_qubit_x.into_iter() {
-            debug_assert!(x % 2 == 0, "data coord must not be odd number");
-            debug_assert!(y % 2 == 0, "data coord must not be odd number");
-            x_frame[(x as usize, y as usize)] ^= 1;
+            debug_assert!(
+                x % 2 == 0,
+                "data coord must not be odd number: {:?}",
+                (x, y)
+            );
+            debug_assert!(
+                y % 2 == 0,
+                "data coord must not be odd number: {:?}",
+                (x, y)
+            );
+            x_frame[((x / 2) as usize, (y / 2) as usize)] ^= 1;
         }
     }
 
-    /// defectが奇数のとき、boundaryを一つ反転させる
-    fn flip_defect(measurement_graph: &mut UnGraph) {
+    /// boundaryをいくつか反転させる
+    fn flip_defect(measurement_graph: &mut UnGraph, distance: usize) {
         let defect_num = measurement_graph
             .iter_classical_register()
             .filter(|(_, defect)| defect.get() == 1)
             .count();
-        if defect_num % 2 == 1 {
-            for (coord, defect) in measurement_graph
-                .iter_classical_register()
-                .filter(|&(coord, _)| measurement_graph.is_boundary(coord).unwrap())
-            {
-                if defect.get() == 0 {
-                    measurement_graph.flip_classical_register(coord, 1)
+        let mut flip_num = if defect_num % 2 == 1 { -1 } else { 0 };
+
+        for (coord, defect) in measurement_graph
+            .iter_classical_register()
+            .filter(|&(coord, _)| measurement_graph.is_boundary(coord).unwrap())
+        {
+            if defect.get() == 0 {
+                measurement_graph.flip_classical_register(coord, 1);
+                flip_num += 1;
+
+                if flip_num == distance as i32 - 3 {
+                    break;
                 }
             }
         }
     }
 
-    /// 測定結果にxorを施してdecode用の値にする
-    fn xor_syndrome(measurement_graph: &mut UnGraph) {
-        // 毎回measurement qubitの初期化をしていないため、値が入れ替わったかどうかで判断する
-        measurement_graph.xor_to_last_time();
-
-        // measurement error を確認するために時間方向でもう一度xor
-        measurement_graph.xor_to_last_time()
-    }
-
-    /// 測定結果にerrorを挿入
-    fn insert_measurement_error(measurement_graph: &mut UnGraph, error_rate: f32) {
-        measurement_graph.insert_measurement_error(error_rate);
-    }
-
     /// run circuit
     pub fn run(&mut self) {
         self.network.run();
+    }
+
+    /// reset code
+    pub fn reset(&mut self) {
+        self.measurement_graph_x.reset_register();
+        self.measurement_graph_z.reset_register();
+        self.pauli_frame.reset();
+        self.network.reset();
     }
 
     pub fn classical_register(&self) -> &Vec<Vec<Rc<Cell<u8>>>> {
@@ -506,7 +557,7 @@ mod test {
     #[test]
     fn gen_qec_code() {
         for distance in (3..27).step_by(2) {
-            let code = super::RotatedSurfaceCode::new(distance, distance + 2, 0.01, 0);
+            let code = super::RotatedSurfaceCode::new(distance, distance + 2, 0.01, 0.01, 0);
             assert_eq!(
                 distance * distance,
                 code.measurement_qubit_z.len() + code.measurement_qubit_z.len() + 1
@@ -517,7 +568,7 @@ mod test {
     #[test]
     fn test_gen_measurement_graph() {
         let distance = 3;
-        let code = super::RotatedSurfaceCode::new(distance, distance + 2, 0.01, 0);
+        let code = super::RotatedSurfaceCode::new(distance, distance + 2, 0.01, 0.01, 0);
         let seed = 0;
 
         super::RotatedSurfaceCode::gen_measurement_graph(

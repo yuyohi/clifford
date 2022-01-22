@@ -1,8 +1,8 @@
 use itertools::Itertools;
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 #[derive(Debug)]
 struct ClassicalRegister {
@@ -29,7 +29,7 @@ impl ClassicalRegister {
     }
 
     /// get register
-    fn register(&self, node: &(i32, i32, i32)) -> Option<&Rc<Cell<u8>>> {
+    fn register_from_coord(&self, node: &(i32, i32, i32)) -> Option<&Rc<Cell<u8>>> {
         self.register
             .get(node.2 as usize)?
             .get(self.coord_to_index.get(node)?.clone())
@@ -53,9 +53,9 @@ impl ClassicalRegister {
         self.register.iter()
     }
 
-    /// insert or set
-    fn entry_or_insert(&mut self, coord: (i32, i32, i32)) {
-        //self.coord_to_index
+    /// return register
+    fn register(&self) -> &Vec<Vec<Rc<Cell<u8>>>> {
+        &self.register
     }
 }
 
@@ -106,7 +106,11 @@ impl UnGraph {
     }
 
     /// make graph from edges
-    pub fn from_edges(edges: &[((i32, i32, i32), (i32, i32, i32))], round: usize, seed: u64) -> Self {
+    pub fn from_edges(
+        edges: &[((i32, i32, i32), (i32, i32, i32))],
+        round: usize,
+        seed: u64,
+    ) -> Self {
         let mut network = HashMap::new();
         let classical_register = ClassicalRegister::new(round);
 
@@ -134,6 +138,18 @@ impl UnGraph {
             self.network.entry(u).or_insert_with(|| vec![]).push(v);
             self.network.entry(v).or_insert_with(|| vec![]).push(u);
         }
+    }
+
+    /// add edge
+    pub fn add_edge_from(&mut self, edge: &((i32, i32, i32), (i32, i32, i32))) {
+        self.network
+            .entry(edge.0)
+            .or_insert_with(|| vec![])
+            .push(edge.1);
+        self.network
+            .entry(edge.1)
+            .or_insert_with(|| vec![])
+            .push(edge.0);
     }
 
     /// set all edge weight equal p
@@ -190,7 +206,10 @@ impl UnGraph {
 
     /// flip classical register
     pub fn flip_classical_register(&self, coord: &(i32, i32, i32), value: u8) {
-        self.classical_register.register(coord).unwrap().set(value);
+        self.classical_register
+            .register_from_coord(coord)
+            .unwrap()
+            .set(value);
     }
 
     /// iterate classical register
@@ -200,7 +219,7 @@ impl UnGraph {
 
     /// return classical register
     pub fn classical_register(&self, node: &(i32, i32, i32)) -> Option<&Rc<Cell<u8>>> {
-        self.classical_register.register(node)
+        self.classical_register.register_from_coord(node)
     }
 
     /// get classical register mut
@@ -239,20 +258,32 @@ impl UnGraph {
 
     /// 前の時間とxor
     pub fn xor_to_last_time(&mut self) {
-        for (back, forth) in self.classical_register_mut().iter().tuple_windows() {
+        let mut temp_mat: Vec<Vec<u8>> = vec![
+            vec![0; self.classical_register.register()[0].len()];
+            self.classical_register.register().len() - 2
+        ];
+        for ((back, forth), temp_vec) in self
+            .classical_register_mut()
+            .iter()
+            .tuple_windows()
+            .zip(temp_mat.iter_mut())
+        {
             forth
                 .iter()
                 .zip(back.iter())
-                .for_each(|(f, b)| f.set(f.get() ^ b.get()))
+                .zip(temp_vec.iter_mut())
+                .for_each(|((f, b), temp)| *temp = f.get() ^ b.get());
         }
-    }
 
-    /// 測定エラーを挿入
-    pub fn insert_measurement_error(&mut self, error_rate: f32) {
-        for value in self.classical_register.iter_value().flatten() {
-            if self.rng.gen::<f32>() < error_rate {
-                value.set(value.get() ^ 1);
-            }
+        // replace
+        for (register, temp) in self
+            .classical_register_mut()
+            .iter()
+            .skip(1)
+            .flatten()
+            .zip(temp_mat.into_iter().flatten())
+        {
+            register.set(temp);
         }
     }
 
@@ -265,5 +296,23 @@ impl UnGraph {
         debug_assert!((u.1 + v.1) % 2 == 0);
 
         ((u.0 + v.0) / 2, (u.1 + v.1) / 2)
+    }
+
+    /// show all defect
+    pub fn show_all_defect(&self) {
+        print!("defect");
+        for (coord, register) in self.classical_register.iter() {
+            if register.get() == 1 {
+                print!("{:?}, ", coord);
+            }
+        }
+        println!("");
+    }
+
+    /// reset all register
+    pub fn reset_register(&self) {
+        for value in self.classical_register.iter_value().flatten() {
+            value.set(0);
+        }
     }
 }

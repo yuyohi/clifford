@@ -180,7 +180,7 @@ impl SimulatorCore for CHPSimulatorCore {
     }
 
     /// measurement
-    fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>) {
+    fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f32) -> bool {
         let p = self
             .stabilizer_tableau
             .slice(s![self.qubit_num.., a])
@@ -223,9 +223,7 @@ impl SimulatorCore for CHPSimulatorCore {
             }
 
             // 値を格納
-            //self.classical_register[a] = self.stabilizer_tableau[[p[0], self.qubit_num * 2]];
             register.set(self.stabilizer_tableau[[p[0], self.qubit_num * 2]]);
-            // println!("{}", self.stabilizer_tableau[[p[0], self.qubit_num * 2]]);
         } else {
             // 測定結果が決定的のとき
             let mut temp: Array1<u8> = Array::zeros(self.qubit_num * 2 + 1);
@@ -238,9 +236,15 @@ impl SimulatorCore for CHPSimulatorCore {
                 .for_each(|(i, _)| self.row_sum_temp(i + self.qubit_num, &mut temp));
 
             // 値を格納
-            //self.classical_register[a] = temp[self.qubit_num * 2];
             register.set(temp[self.qubit_num * 2]);
-            // println!("{}", temp[self.qubit_num * 2]);
+        }
+
+        if self.rng.gen::<f32>() < error_rate {
+            register.set(register.get() ^ 1);
+            // println!("measurement error: {}", a);
+            true
+        } else {
+            false
         }
     }
 
@@ -295,16 +299,25 @@ impl SimulatorCore for CHPSimulatorCore {
         }
     }
 
+    /// measurement and reset
+    fn measurement_and_reset(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f32) {
+        let measurement_error = self.measurement(a, register, error_rate);
+        if (register.get() == 1) && !measurement_error {
+            self.x(a);
+        }
+    }
+
     /// insert depolarizing noise
     fn depolarizing(&mut self, a: usize, p: f32) {
         if self.rng.gen::<f32>() < p {
             // insert noise
             match self.rng.gen::<f32>() {
-                x if (0.0..1.0 / 3.0).contains(&x) => self.z(a),        // Z error
-                x if (1.0 / 3.0..2.0 / 3.0).contains(&x) => self.x(a),  // X error
+                x if (0.0..1.0 / 3.0).contains(&x) => {self.z(a); /*println!("z error: {}", a)*/},        // Z error
+                x if (1.0 / 3.0..2.0 / 3.0).contains(&x) => {self.x(a); /*println!("x error: {}", a)*/},  // X error
                 x if (2.0 / 3.0..1.0).contains(&x) => {                 // Y error
                     self.x(a);
                     self.z(a);
+                    // println!("y error: {}", a)
                 }
                 _ => panic!("rng must be 0.0..1.0"),
             }
@@ -344,17 +357,17 @@ impl SimulatorInterface for CHPSimulator {
     }
 
     /// add measurement
-    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>) {
-        self.dispatcher.push(Operation::M(a, register));
+    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+        self.dispatcher.push(Operation::M(a, register, error_rate));
     }
-
-    ///  add measurement as once
-    //fn add_measurement_at_once(&mut self, a: Vec<usize>, register: &mut Array3<u8>) {
-
-    //}
 
     fn add_measurement_to_zero(&mut self, a: usize) {
         self.dispatcher.push(Operation::MToZero(a));
+    }
+
+    /// add measurement_and_reset
+    fn add_measurement_and_reset(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+        self.dispatcher.push(Operation::MR(a, register, error_rate));
     }
 
     fn add_noise(&mut self, a: usize, noise_type: NoiseType) {
@@ -368,6 +381,11 @@ impl SimulatorInterface for CHPSimulator {
         self.core.reset();
     }
 
+    /// measurement direct
+    fn measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+        self.core.measurement(a, &register, error_rate);
+    }
+
     /// run circuit
     fn run(&mut self) {
         let Self { core, dispatcher } = self;
@@ -377,17 +395,14 @@ impl SimulatorInterface for CHPSimulator {
                 Operation::CX(a, b) => core.cx(*a, *b),
                 Operation::H(a) => core.h(*a),
                 Operation::Depolarizing(a, p) => core.depolarizing(*a, *p),
-                //Operation::MAll(c) =
-                Operation::M(a, register) => core.measurement(*a, register),
+                Operation::MR(a, register, error_rate) => core.measurement_and_reset(*a, register, *error_rate),
+                Operation::M(a, register, error_rate) => {core.measurement(*a, register, *error_rate);},
                 Operation::MToZero(a) => core.measurement_to_zero(*a),
                 Operation::S(a) => core.s(*a),
                 Operation::X(a) => core.x(*a),
                 Operation::Z(a) => core.z(*a),
             }
             //println!("{:?}", op);
-            //println!("{:#}", core.stabilizer_tableau.slice(s![num.., ..]));
-            //println!("{:#}", core.stabilizer_tableau);
         }
-        //println!("{:#}", core.stabilizer_tableau);
     }
 }
