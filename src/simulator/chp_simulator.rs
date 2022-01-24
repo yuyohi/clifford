@@ -4,14 +4,14 @@ use super::{
 };
 use crate::noise::noise_model::NoiseType;
 use ndarray::*;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{rngs::SmallRng, Rng};
 use std::cell::Cell;
 use std::rc::Rc;
 
 pub struct CHPSimulatorCore {
     qubit_num: usize,
     stabilizer_tableau: Array2<u8>,
-    rng: rand::rngs::SmallRng,
+    rng: SmallRng,
     classical_register: Vec<u8>,
 }
 
@@ -21,7 +21,7 @@ pub struct CHPSimulator {
 }
 
 impl CHPSimulator {
-    pub fn new(qubit_num: usize, rng: rand::rngs::SmallRng) -> Self {
+    pub fn new(qubit_num: usize, rng: SmallRng) -> Self {
         let size = qubit_num * 2;
         let stabilizer_tableau: Array2<u8> =
             concatenate![Axis(1), Array::eye(size), Array::zeros((size, 1))];
@@ -312,12 +312,25 @@ impl SimulatorCore for CHPSimulatorCore {
         if self.rng.gen::<f32>() < p {
             // insert noise
             match self.rng.gen::<f32>() {
-                x if (0.0..1.0 / 3.0).contains(&x) => {self.z(a); println!("z error: {}", a)},        // Z error
-                x if (1.0 / 3.0..2.0 / 3.0).contains(&x) => {self.x(a); println!("x error: {}", a)},  // X error
-                x if (2.0 / 3.0..1.0).contains(&x) => {                 // Y error
+                x if (0.0..1.0 / 3.0).contains(&x) => {
+                    self.z(a);
+                    if cfg!(debug_assertions) {
+                        println!("z error: {}", a)
+                    }
+                } // Z error
+                x if (1.0 / 3.0..2.0 / 3.0).contains(&x) => {
+                    self.x(a);
+                    if cfg!(debug_assertions) {
+                        println!("x error: {}", a)
+                    }
+                } // X error
+                x if (2.0 / 3.0..1.0).contains(&x) => {
+                    // Y error
                     self.x(a);
                     self.z(a);
-                    println!("y error: {}", a)
+                    if cfg!(debug_assertions) {
+                        println!("y error: {}", a)
+                    }
                 }
                 _ => panic!("rng must be 0.0..1.0"),
             }
@@ -395,8 +408,12 @@ impl SimulatorInterface for CHPSimulator {
                 Operation::CX(a, b) => core.cx(*a, *b),
                 Operation::H(a) => core.h(*a),
                 Operation::Depolarizing(a, p) => core.depolarizing(*a, *p),
-                Operation::MR(a, register, error_rate) => core.measurement_and_reset(*a, register, *error_rate),
-                Operation::M(a, register, error_rate) => {core.measurement(*a, register, *error_rate);},
+                Operation::MR(a, register, error_rate) => {
+                    core.measurement_and_reset(*a, register, *error_rate)
+                }
+                Operation::M(a, register, error_rate) => {
+                    core.measurement(*a, register, *error_rate);
+                }
                 Operation::MToZero(a) => core.measurement_to_zero(*a),
                 Operation::S(a) => core.s(*a),
                 Operation::X(a) => core.x(*a),

@@ -165,21 +165,25 @@ fn minimum_weight_perfect_matching(
 
     // 空間方向にedgeが存在するものだけを抽出
     for (u, v) in matching.edges() {
-        println!("edge {:?}, {:?}", u, v);
+        if cfg!(debug_assertions) {
+            println!("edge {:?}, {:?}", u, v);
+        }
         if (u.0 != v.0) || (u.1 != v.1) {
             let correction_path = path_detail
                 .get(&(u, v))
                 .unwrap_or_else(|| panic!("edge: {:?} is not exist", (u, v)));
 
             // debug
-            
+
             let weight: f32 = correction_path
                 .iter()
                 .tuple_windows()
                 .map(|(&u, &v)| graph.edge_weight(&(u, v)).unwrap())
                 .sum();
 
-            println!("correction path: {:?}, weight: {}", correction_path, weight); 
+            if cfg!(debug_assertions) {
+                println!("correction path: {:?}, weight: {}", correction_path, weight);
+            }
 
             correction_path
                 .into_iter()

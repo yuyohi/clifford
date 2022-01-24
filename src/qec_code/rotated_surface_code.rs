@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use rand::{self, Rng};
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -503,11 +502,15 @@ impl RotatedSurfaceCode {
                 .set(parity);
         }
 
-        self.single_round_measurement_graph_z.show_all_defect();
+        if cfg!(debug_assertions) {
+            self.single_round_measurement_graph_z.show_all_defect();
+        }
 
         Self::flip_defect(&mut self.single_round_measurement_graph_z);
         let correction_qubit_x = mwpm::decode(&self.single_round_measurement_graph_z, 10);
-        println!("correction_qubit_x {:?}", correction_qubit_x);
+        if cfg!(debug_assertions) {
+            println!("correction_qubit_x {:?}", correction_qubit_x);
+        }
         // correction
         for (x, y) in correction_qubit_x.into_iter() {
             let register = &self.classical_register[x as usize / 2][y as usize / 2];
@@ -519,7 +522,9 @@ impl RotatedSurfaceCode {
     pub fn logical_value(&mut self) -> u8 {
         self.logical_measurement();
         self.correct_z_error();
-        println!("start logical decode");
+        if cfg!(debug_assertions) {
+            println!("start logical decode");
+        }
         self.decode_logical_value();
 
         let result = self.classical_register();
@@ -548,32 +553,40 @@ impl RotatedSurfaceCode {
 
     /// decode by mwpm
     pub fn decode_mwpm(&mut self, m: usize) {
-        print!("before xor z: ");
-        self.measurement_graph_z.show_all_defect();
-        print!("before xor x: ");
-        self.measurement_graph_x.show_all_defect();
+        if cfg!(debug_assertions) {
+            print!("before xor z: ");
+            self.measurement_graph_z.show_all_defect();
+            print!("before xor x: ");
+            self.measurement_graph_x.show_all_defect();
+        }
 
         self.measurement_graph_z.xor_to_last_time();
         self.measurement_graph_x.xor_to_last_time();
 
-        print!("after xor z: ");
-        self.measurement_graph_z.show_all_defect();
-        print!("after xor x: ");
-        self.measurement_graph_x.show_all_defect();
+        if cfg!(debug_assertions) {
+            print!("after xor z: ");
+            self.measurement_graph_z.show_all_defect();
+            print!("after xor x: ");
+            self.measurement_graph_x.show_all_defect();
+        }
 
         Self::flip_defect(&mut self.measurement_graph_z);
         Self::flip_defect(&mut self.measurement_graph_x);
 
-        print!("after flip z: ");
-        self.measurement_graph_z.show_all_defect();
-        print!("after flip x: ");
-        self.measurement_graph_x.show_all_defect();
+        if cfg!(debug_assertions) {
+            print!("after flip z: ");
+            self.measurement_graph_z.show_all_defect();
+            print!("after flip x: ");
+            self.measurement_graph_x.show_all_defect();
+        }
 
         let correction_qubit_z = mwpm::decode(&self.measurement_graph_x, m);
         let correction_qubit_x = mwpm::decode(&self.measurement_graph_z, m);
 
-        println!("correction_qubit_x {:?}", correction_qubit_x);
-        println!("correction_qubit_z {:?}", correction_qubit_z);
+        if cfg!(debug_assertions) {
+            println!("correction_qubit_x {:?}", correction_qubit_x);
+            println!("correction_qubit_z {:?}", correction_qubit_z);
+        }
 
         // pauli frameに設定
         let mut z_frame = self.pauli_frame.z_frame_mut();
