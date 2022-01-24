@@ -330,23 +330,22 @@ impl RotatedSurfaceCode {
             x_stabilizers,
             measurement_graph_z,
             measurement_graph_x,
+            data_qubit,
             ..
         } = self;
 
         let noise_type = NoiseType::Depolarizing(network.error_rate());
 
-        // 仮 現象論的ノイズ
-        /*
-        for c in data_qubit.iter() {
-            network.insert_noise(*c, noise_type);
-        }
-        */
-
         for t in 0..*round as i32 {
+            // 仮 現象論的ノイズ
+            for c in data_qubit.iter() {
+                network.insert_noise(*c, noise_type);
+            }
+
             // XスタビライザーにHゲートを作用させる
             for Stabilizer { ancilla, .. } in x_stabilizers.iter() {
                 network.h(*ancilla);
-                network.insert_noise(*ancilla, noise_type); // circuit noise
+                // network.insert_noise(*ancilla, noise_type); // circuit noise
             }
 
             // CNOT
@@ -360,16 +359,16 @@ impl RotatedSurfaceCode {
                     match z_data_coord {
                         Some(data_coord) => {
                             network.cx(*data_coord, z_stab.ancilla);
-                            network.insert_noise(z_stab.ancilla, noise_type); // circuit noise
-                            network.insert_noise(*data_coord, noise_type);
+                            // network.insert_noise(z_stab.ancilla, noise_type); // circuit noise
+                            // network.insert_noise(*data_coord, noise_type);
                         }
                         None => (),
                     }
                     match x_data_coord {
                         Some(data_coord) => {
                             network.cx(*data_coord, x_stab.ancilla);
-                            network.insert_noise(*data_coord, noise_type); // circuit noise
-                            network.insert_noise(*data_coord, noise_type);
+                            // network.insert_noise(*data_coord, noise_type); // circuit noise
+                            // network.insert_noise(*data_coord, noise_type);
                         }
                         None => (),
                     }
