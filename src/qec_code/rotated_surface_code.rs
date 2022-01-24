@@ -366,7 +366,7 @@ impl RotatedSurfaceCode {
                     }
                     match x_data_coord {
                         Some(data_coord) => {
-                            network.cx(*data_coord, x_stab.ancilla);
+                            network.cx(x_stab.ancilla, *data_coord);
                             // network.insert_noise(*data_coord, noise_type); // circuit noise
                             // network.insert_noise(*data_coord, noise_type);
                         }
@@ -378,7 +378,7 @@ impl RotatedSurfaceCode {
             // XスタビライザーにHゲートを作用させる
             for Stabilizer { ancilla, .. } in x_stabilizers.iter() {
                 network.h(*ancilla);
-                network.insert_noise(*ancilla, noise_type); // circuit noise
+                // network.insert_noise(*ancilla, noise_type); // circuit noise
             }
 
             // measurement qubitの測定

@@ -3,9 +3,9 @@ use colored::*;
 
 fn main() {
     let loop_num = 10000;
-    let distance = 5;
+    let distance = 3;
     let seed = 10;
-    let mut code = RotatedSurfaceCode::new(distance, distance, 0.001, 0.001, seed);
+    let mut code = RotatedSurfaceCode::new(distance, distance, 0.1, 0.0, seed);
 
     code.initialize();
     code.syndrome_measurement();
@@ -29,7 +29,8 @@ fn main() {
         }
         println!("ans = {}, loop {}", ans, i);
         if ans != 0 {
-            println!("{}", "#########################################################################################\nerror\n#########################################################################################".red())
+            println!("{}", "#########################################################################################\nerror\n#########################################################################################".red());
+            break;
         }
         println!("");
     }

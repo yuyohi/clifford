@@ -151,6 +151,8 @@ fn construct_syndrome_graph(
     // construct local matching graph
     let local_graph = UnGraphMap::<(i32, i32, i32), f32>::from_edges(&paths);
 
+    // dbg!(&local_graph);
+
     (local_graph, path_detail)
 }
 

@@ -175,7 +175,6 @@ impl SimulatorCore for CHPSimulatorCore {
         let (mut r, x_a) = self
             .stabilizer_tableau
             .multi_slice_mut((s![.., -1], s![.., a]));
-
         r ^= &x_a;
     }
 
@@ -421,7 +420,7 @@ impl SimulatorInterface for CHPSimulator {
                 Operation::X(a) => core.x(*a),
                 Operation::Z(a) => core.z(*a),
             }
-            //println!("{:?}", op);
+            println!("{:?}", op);
         }
     }
 }
