@@ -241,7 +241,9 @@ impl SimulatorCore for CHPSimulatorCore {
 
         if self.rng.gen::<f32>() < error_rate {
             register.set(register.get() ^ 1);
-            println!("measurement error: {}", a);
+            if cfg!(debug_assertions) {
+                println!("measurement error: {}", a);
+            }
             true
         } else {
             false
