@@ -241,7 +241,7 @@ impl SimulatorCore for CHPSimulatorCore {
 
         if self.rng.gen::<f32>() < error_rate {
             register.set(register.get() ^ 1);
-            // println!("measurement error: {}", a);
+            println!("measurement error: {}", a);
             true
         } else {
             false
@@ -312,12 +312,12 @@ impl SimulatorCore for CHPSimulatorCore {
         if self.rng.gen::<f32>() < p {
             // insert noise
             match self.rng.gen::<f32>() {
-                x if (0.0..1.0 / 3.0).contains(&x) => {self.z(a); /*println!("z error: {}", a)*/},        // Z error
-                x if (1.0 / 3.0..2.0 / 3.0).contains(&x) => {self.x(a); /*println!("x error: {}", a)*/},  // X error
+                x if (0.0..1.0 / 3.0).contains(&x) => {self.z(a); println!("z error: {}", a)},        // Z error
+                x if (1.0 / 3.0..2.0 / 3.0).contains(&x) => {self.x(a); println!("x error: {}", a)},  // X error
                 x if (2.0 / 3.0..1.0).contains(&x) => {                 // Y error
                     self.x(a);
                     self.z(a);
-                    // println!("y error: {}", a)
+                    println!("y error: {}", a)
                 }
                 _ => panic!("rng must be 0.0..1.0"),
             }

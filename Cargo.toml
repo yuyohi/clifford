@@ -11,3 +11,4 @@ ndarray = "0.15"
 rand = {version="0.8", default_features=false, features=["small_rng"]}
 itertools = "0.10"
 indicatif = "0.16.0"
+colored = "2.0"

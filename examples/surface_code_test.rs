@@ -1,10 +1,11 @@
 use clifford::qec_code::rotated_surface_code::RotatedSurfaceCode;
+use colored::*;
 
 fn main() {
     let loop_num = 10000;
     let distance = 5;
-    let seed = 1;
-    let mut code = RotatedSurfaceCode::new(distance, distance, 0.0001, 0.0001, seed);
+    let seed = 10;
+    let mut code = RotatedSurfaceCode::new(distance, distance, 0.001, 0.001, seed);
 
     code.initialize();
     code.syndrome_measurement();
@@ -26,8 +27,11 @@ fn main() {
         if ans == u8::MAX {
             abnormal += 1;
         }
-        //println!("ans = {}, loop {}", ans, i);
-        //println!("");
+        println!("ans = {}, loop {}", ans, i);
+        if ans != 0 {
+            println!("{}", "#########################################################################################\nerror\n#########################################################################################".red())
+        }
+        println!("");
     }
 
     println!("abnormal: {}", abnormal);
