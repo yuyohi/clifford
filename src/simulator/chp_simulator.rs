@@ -420,7 +420,7 @@ impl SimulatorInterface for CHPSimulator {
                 Operation::X(a) => core.x(*a),
                 Operation::Z(a) => core.z(*a),
             }
-            println!("{:?}", op);
+            // println!("{:?}", op);
         }
     }
 }

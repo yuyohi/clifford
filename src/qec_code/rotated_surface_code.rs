@@ -10,6 +10,8 @@ use crate::qubit_graph::ungraph::UnGraph;
 use crate::qubit_network::QubitNetwork;
 use crate::simulator::{frame::PauliFrame, Type};
 
+use petgraph::prelude::UnGraphMap;
+
 pub struct RotatedSurfaceCode {
     distance: usize,
     round: usize,

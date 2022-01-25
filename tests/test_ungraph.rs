@@ -1,5 +1,8 @@
 use clifford::qubit_graph::ungraph::UnGraph;
 
+use petgraph::algo::matching;
+use petgraph::graphmap::GraphMap;
+use petgraph::graphmap::UnGraphMap;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -39,5 +42,21 @@ fn test_xor() {
     g.show_all_defect();
     g.xor_to_last_time();
     g.show_all_defect();
+}
 
+#[test]
+fn test_matching() {
+    let local_graph = UnGraphMap::<i32, i32>::from_edges(&[
+        (0, 1, 0),
+        (0, 2, 100),
+        (3, 0, 2),
+        (3, 1, 1),
+        (1, 2, 2),
+        (3, 2, 3),
+    ]);
+
+    let matching = matching::maximum_matching(&local_graph);
+    for edge in matching.edges() {
+        println!("{:?}", edge);
+    }
 }

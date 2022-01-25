@@ -1,14 +1,21 @@
 use crate::qubit_graph::ungraph::UnGraph;
 
 use itertools::Itertools;
-use petgraph::algo::matching;
 use petgraph::graphmap::GraphMap;
 use petgraph::graphmap::UnGraphMap;
 use petgraph::Undirected;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::collections::HashMap;
-use std::collections::HashSet;
+
+use retworkx_core::max_weight_matching::max_weight_matching;
+use retworkx_core::Result;
+use retworkx_core::petgraph as rpet; 
+
+use std::fs::File;
+use std::io::Write;
+use petgraph::dot::{Config, Dot};
+
+use hashbrown::{HashMap, HashSet};
 
 #[derive(Clone, PartialEq, Debug)]
 struct State {
@@ -157,16 +164,58 @@ fn construct_syndrome_graph(
 }
 
 fn minimum_weight_perfect_matching(
-    graph: &UnGraph,
     local_graph: GraphMap<(i32, i32, i32), f32, Undirected>,
+) -> Vec<((i32, i32, i32), (i32, i32, i32))> {
+    let mut coord_to_index = HashMap::new();
+    let mut index_to_coord = HashMap::new();
+
+    for (i, coord) in local_graph.nodes().enumerate() {
+        coord_to_index.insert(coord, i);
+        index_to_coord.insert(i, coord);
+    }
+    let mut edges = Vec::new();
+
+    for (u, v, &w) in local_graph.all_edges() {
+        let &start = coord_to_index.get(&u).unwrap();
+        let &end = coord_to_index.get(&v).unwrap(); 
+
+        let weight = (w * 100000000.0) as i128;
+        edges.push((start as u32, end as u32, weight));
+    }
+
+    let g = rpet::graph::UnGraph::<u32, i128>::from_edges(&edges);
+
+    /* 
+    let mut f = File::create("example.dot").unwrap();
+            let output = format!("{:?}", Dot::new(&g));
+            f.write_all(&output.as_bytes())
+                .expect("could not write file"); */
+
+    let res: Result<HashSet<(usize, usize)>> =
+        max_weight_matching(&g, true, |e| Ok(*e.weight()), true);
+
+    let matching_index = res.unwrap();
+
+    let mut matching = Vec::new();
+
+    for (u, v) in matching_index {
+        let &start = index_to_coord.get(&u).unwrap();
+        let &end = index_to_coord.get(&v).unwrap();
+        matching.push((start, end));
+    }
+
+    matching
+}
+
+fn decide_correction_qubit(
+    graph: &UnGraph,
+    matching: Vec<((i32, i32, i32), (i32, i32, i32))>,
     path_detail: HashMap<((i32, i32, i32), (i32, i32, i32)), Vec<(i32, i32, i32)>>,
 ) -> Vec<(i32, i32)> {
-    let matching = matching::maximum_matching(&local_graph);
-
     let mut correction_qubit = Vec::new();
 
     // 空間方向にedgeが存在するものだけを抽出
-    for (u, v) in matching.edges() {
+    for (u, v) in matching.into_iter() {
         if cfg!(debug_assertions) {
             println!("edge {:?}, {:?}", u, v);
         }
@@ -175,15 +224,12 @@ fn minimum_weight_perfect_matching(
                 .get(&(u, v))
                 .unwrap_or_else(|| panic!("edge: {:?} is not exist", (u, v)));
 
-            // debug
-
-            let weight: f32 = correction_path
-                .iter()
-                .tuple_windows()
-                .map(|(&u, &v)| graph.edge_weight(&(u, v)).unwrap())
-                .sum();
-
             if cfg!(debug_assertions) {
+                let weight: f32 = correction_path
+                    .iter()
+                    .tuple_windows()
+                    .map(|(&u, &v)| graph.edge_weight(&(u, v)).unwrap())
+                    .sum();
                 println!("correction path: {:?}, weight: {}", correction_path, weight);
             }
 
@@ -201,5 +247,6 @@ fn minimum_weight_perfect_matching(
 /// decode
 pub fn decode(graph: &UnGraph, m: usize) -> Vec<(i32, i32)> {
     let (local_graph, path_detail) = construct_syndrome_graph(graph, m);
-    minimum_weight_perfect_matching(graph, local_graph, path_detail)
+    let matching = minimum_weight_perfect_matching(local_graph);
+    decide_correction_qubit(graph, matching, path_detail)
 }

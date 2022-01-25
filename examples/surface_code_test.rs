@@ -3,9 +3,9 @@ use colored::*;
 
 fn main() {
     let loop_num = 10000;
-    let distance = 3;
+    let distance = 7;
     let seed = 10;
-    let mut code = RotatedSurfaceCode::new(distance, distance, 0.1, 0.0, seed);
+    let mut code = RotatedSurfaceCode::new(distance, distance, 0.01, 0.01, seed);
 
     code.initialize();
     code.syndrome_measurement();
@@ -16,7 +16,7 @@ fn main() {
     for i in 0..loop_num {
         code.reset();
         code.run();
-        code.decode_mwpm(distance);
+        let graph = code.decode_mwpm(distance);
 
         let ans = code.logical_value();
 
@@ -30,7 +30,7 @@ fn main() {
         println!("ans = {}, loop {}", ans, i);
         if ans != 0 {
             println!("{}", "#########################################################################################\nerror\n#########################################################################################".red());
-            break;
+            // break;
         }
         println!("");
     }

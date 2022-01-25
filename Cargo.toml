@@ -19,3 +19,8 @@ rand = {version="0.8", default_features=false, features=["small_rng"]}
 itertools = "0.10"
 indicatif = "0.16.0"
 colored = "2.0"
+pyo3 = "0.15"
+retworkx-core = "0.11"
+
+[dependencies.hashbrown]
+version = "0.11"
