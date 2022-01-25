@@ -7,22 +7,27 @@ use std::rc::Rc;
 #[derive(Debug)]
 struct ClassicalRegister {
     coord_to_index: HashMap<(i32, i32, i32), usize>,
+    index_to_coord: HashMap<(usize, usize), (i32, i32, i32)>,
     register: Vec<Vec<Rc<Cell<u8>>>>,
 }
 
 impl ClassicalRegister {
     fn new(round: usize) -> Self {
         let coord_to_index = HashMap::new();
+        let index_to_coord = HashMap::new();
         let register = vec![Vec::new(); round + 1];
 
         Self {
             coord_to_index,
+            index_to_coord,
             register,
         }
     }
 
     /// set Rc<Cell<u8>>
     fn set_classical_register(&mut self, node: (i32, i32, i32), classical_register: Rc<Cell<u8>>) {
+        self.index_to_coord
+            .insert((self.register[node.2 as usize].len(), node.2 as usize), node);
         self.coord_to_index
             .insert(node, self.register[node.2 as usize].len());
         self.register[node.2 as usize].push(classical_register);
@@ -56,6 +61,11 @@ impl ClassicalRegister {
     /// return register
     fn register(&self) -> &Vec<Vec<Rc<Cell<u8>>>> {
         &self.register
+    }
+
+    /// return
+    fn index_to_coord(&self) -> &HashMap<(usize, usize), (i32, i32, i32)> {
+        &self.index_to_coord
     }
 }
 
@@ -218,13 +228,18 @@ impl UnGraph {
     }
 
     /// return classical register
-    pub fn classical_register(&self, node: &(i32, i32, i32)) -> Option<&Rc<Cell<u8>>> {
+    pub fn get_register(&self, node: &(i32, i32, i32)) -> Option<&Rc<Cell<u8>>> {
         self.classical_register.register_from_coord(node)
     }
 
     /// get classical register mut
     pub fn classical_register_mut(&mut self) -> &mut Vec<Vec<Rc<Cell<u8>>>> {
         self.classical_register.register_mut()
+    }
+
+    /// get classical register 
+    pub fn classical_register(&self) -> &Vec<Vec<Rc<Cell<u8>>>> {
+        self.classical_register.register()
     }
 
     /// tales one parameter, iterating the nodes connected to it by an outbound edge
@@ -314,5 +329,9 @@ impl UnGraph {
         for value in self.classical_register.iter_value().flatten() {
             value.set(0);
         }
+    }
+
+    pub fn index_to_coord(&self) -> &HashMap<(usize, usize), (i32, i32, i32)> {
+        self.classical_register.index_to_coord()
     }
 }

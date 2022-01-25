@@ -3,7 +3,7 @@ use colored::*;
 
 fn main() {
     let loop_num = 10000;
-    let distance = 7;
+    let distance = 5;
     let seed = 10;
     let mut code = RotatedSurfaceCode::new(distance, distance, 0.01, 0.01, seed);
 
@@ -16,7 +16,7 @@ fn main() {
     for i in 0..loop_num {
         code.reset();
         code.run();
-        let graph = code.decode_mwpm(distance);
+        code.decode_mwpm(distance);
 
         let ans = code.logical_value();
 
@@ -30,7 +30,7 @@ fn main() {
         println!("ans = {}, loop {}", ans, i);
         if ans != 0 {
             println!("{}", "#########################################################################################\nerror\n#########################################################################################".red());
-            // break;
+            break;
         }
         println!("");
     }

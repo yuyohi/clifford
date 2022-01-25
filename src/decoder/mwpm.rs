@@ -83,7 +83,7 @@ pub fn local_dijkstra(
                 continue;
             }
             if graph
-                .classical_register(&coord)
+                .get_register(&coord)
                 .unwrap_or_else(|| panic!("{:?} isn't exist", coord))
                 .get()
                 == 1

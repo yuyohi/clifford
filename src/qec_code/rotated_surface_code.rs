@@ -266,8 +266,8 @@ impl RotatedSurfaceCode {
                     network.add_edges_from(&time_boundary_edge);
                     network.set_edges_weight(&time_boundary_edge, 0.0);
 
-                    // 時間のboundaryと空間のboundaryを繋ぐ
-                    let t_boundary_to_boundary = (
+                     // 時間のboundaryと空間のboundaryを繋ぐ
+                     let t_boundary_to_boundary = (
                         (measurement_qubit[0].0, measurement_qubit[0].1, t + 1),
                         (boundary_node[0].0, boundary_node[0].1, t),
                     );
@@ -277,15 +277,6 @@ impl RotatedSurfaceCode {
 
                 network.add_edges_from(&time_edge);
                 network.set_edges_weight(&time_edge, p);
-
-                // 最後のround以外は次のboundary nodeとも繋ぐ
-                if t != (round as i32 - 1) {
-                    for &(x, y) in boundary_node.iter() {
-                        let edge = ((x, y, t), (x, y, t + 1));
-                        network.add_edge_from(&edge);
-                        network.set_edge_weight(&edge, 0.0);
-                    }
-                }
             }
 
             for &((u_x, u_y), (v_x, v_y)) in edges.iter() {
@@ -388,7 +379,7 @@ impl RotatedSurfaceCode {
                     *ancilla,
                     Rc::clone(
                         measurement_graph_z
-                            .classical_register(&(ancilla.0, ancilla.1, t))
+                            .get_register(&(ancilla.0, ancilla.1, t))
                             .unwrap(),
                     ),
                     self.measurement_error_rate,
@@ -400,7 +391,7 @@ impl RotatedSurfaceCode {
                     *ancilla,
                     Rc::clone(
                         measurement_graph_x
-                            .classical_register(&(ancilla.0, ancilla.1, t))
+                            .get_register(&(ancilla.0, ancilla.1, t))
                             .unwrap(),
                     ),
                     self.measurement_error_rate,
@@ -496,7 +487,7 @@ impl RotatedSurfaceCode {
 
             let ancilla = z_stab.ancilla;
             self.single_round_measurement_graph_z
-                .classical_register(&(ancilla.0, ancilla.1, 0))
+                .get_register(&(ancilla.0, ancilla.1, 0))
                 .unwrap()
                 .set(parity);
         }
@@ -505,7 +496,7 @@ impl RotatedSurfaceCode {
             self.single_round_measurement_graph_z.show_all_defect();
         }
 
-        Self::flip_defect(&mut self.single_round_measurement_graph_z);
+        Self::flip_defect(1, &mut self.single_round_measurement_graph_z);
         let correction_qubit_x = mwpm::decode(&self.single_round_measurement_graph_z, 10);
         if cfg!(debug_assertions) {
             println!("correction_qubit_x {:?}", correction_qubit_x);
@@ -569,8 +560,8 @@ impl RotatedSurfaceCode {
             self.measurement_graph_x.show_all_defect();
         }
 
-        Self::flip_defect(&mut self.measurement_graph_z);
-        Self::flip_defect(&mut self.measurement_graph_x);
+        Self::flip_defect(self.round, &mut self.measurement_graph_z);
+        Self::flip_defect(self.round, &mut self.measurement_graph_x);
 
         if cfg!(debug_assertions) {
             print!("after flip z: ");
@@ -618,21 +609,25 @@ impl RotatedSurfaceCode {
         }
     }
 
-    /// boundaryをいくつか反転させる
-    fn flip_defect(measurement_graph: &mut UnGraph) {
-        let defect_num = measurement_graph
-            .iter_classical_register()
-            .filter(|(_, defect)| defect.get() == 1)
-            .count();
-
-        if defect_num % 2 == 1 {
-            for (coord, defect) in measurement_graph
-                .iter_classical_register()
-                .filter(|&(coord, _)| measurement_graph.is_boundary(coord).unwrap())
-            {
-                if defect.get() == 0 {
-                    measurement_graph.flip_classical_register(coord, 1);
-                    break;
+    /// 必要に応じてboundaryを反転させる
+    fn flip_defect(round: usize, measurement_graph: &mut UnGraph) {
+        for t in 0..round {
+            let defect_num = measurement_graph.classical_register()[t]
+                .iter()
+                .filter(|defect| defect.get() == 1)
+                .count();
+            let index_to_coord = measurement_graph.index_to_coord();
+            if defect_num % 2 == 1 {
+                for (coord, defect) in measurement_graph.classical_register()[t]
+                    .iter()
+                    .enumerate()
+                    .map(|(index, defect)| (index_to_coord.get(&(index, t)).unwrap(), defect))
+                    .filter(|&(coord, _)| measurement_graph.is_boundary(coord).unwrap())
+                {
+                    if defect.get() == 0 {
+                        measurement_graph.flip_classical_register(coord, 1);
+                        break;
+                    }
                 }
             }
         }
