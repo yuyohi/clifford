@@ -284,6 +284,15 @@ impl RotatedSurfaceCode {
                 network.set_edge_weight(&((u_x, u_y, t), (v_x, v_y, t)), p);
             }
 
+            // 最後のround以外は次のboundary nodeとも繋ぐ(weightは0ではない)
+            if t != (round as i32 - 1) {
+                for &(x, y) in boundary_node.iter() {
+                    let edge = ((x, y, t), (x, y, t + 1));
+                    network.add_edge_from(&edge);
+                    network.set_edge_weight(&edge, p / 10.0);
+                }
+            }
+
             // boundary node 同士をweight0のedgeで繋ぐ
             let boundary_edge: Vec<_> = boundary_node
                 .iter()
