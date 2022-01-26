@@ -8,4 +8,5 @@ Cargo.lock
 
 .vscode/
 
-qec.*
+qec.png
+qec.svg
