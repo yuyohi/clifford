@@ -11,10 +11,6 @@ use retworkx_core::max_weight_matching::max_weight_matching;
 use retworkx_core::Result;
 use retworkx_core::petgraph as rpet; 
 
-use std::fs::File;
-use std::io::Write;
-use petgraph::dot::{Config, Dot};
-
 use hashbrown::{HashMap, HashSet};
 
 #[derive(Clone, PartialEq, Debug)]
