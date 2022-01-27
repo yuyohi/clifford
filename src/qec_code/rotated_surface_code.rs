@@ -266,13 +266,13 @@ impl RotatedSurfaceCode {
                     network.add_edges_from(&time_boundary_edge);
                     network.set_edges_weight(&time_boundary_edge, 0.0);
 
-                     // 時間のboundaryと空間のboundaryを繋ぐ
-                     let t_boundary_to_boundary = (
+                    // 時間のboundaryと空間のboundaryを繋ぐ
+                    let t_boundary_to_boundary = (
                         (measurement_qubit[0].0, measurement_qubit[0].1, t + 1),
                         (boundary_node[0].0, boundary_node[0].1, t),
                     );
                     network.add_edge_from(&t_boundary_to_boundary);
-                    network.set_edge_weight(&t_boundary_to_boundary, 0.0);
+                    network.set_edge_weight(&t_boundary_to_boundary, p / 10.0);
                 }
 
                 network.add_edges_from(&time_edge);
@@ -349,14 +349,10 @@ impl RotatedSurfaceCode {
             }
 
             // CNOT
-            for (x_stab, z_stab) in x_stabilizers.iter().zip(z_stabilizers.iter()) {
-                for (x_data_coord, z_data_coord) in x_stab
-                    .pauli_product()
-                    .iter()
-                    .zip(z_stab.pauli_product().iter())
-                {
+            for i in 0..4 {
+                for (x_stab, z_stab) in x_stabilizers.iter().zip(z_stabilizers.iter()) {
                     // data bitが存在するときのみCNOT
-                    match z_data_coord {
+                    match z_stab.pauli_product().get(i).unwrap() {
                         Some(data_coord) => {
                             network.cx(*data_coord, z_stab.ancilla);
                             // network.insert_noise(z_stab.ancilla, noise_type); // circuit noise
@@ -364,7 +360,7 @@ impl RotatedSurfaceCode {
                         }
                         None => (),
                     }
-                    match x_data_coord {
+                    match x_stab.pauli_product().get(i).unwrap() {
                         Some(data_coord) => {
                             network.cx(x_stab.ancilla, *data_coord);
                             // network.insert_noise(*data_coord, noise_type); // circuit noise
