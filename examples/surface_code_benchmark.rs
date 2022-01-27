@@ -3,8 +3,8 @@ use indicatif::ProgressBar;
 
 fn main() {
     let loop_num = 10000;
-    let distance = [3, 5, 7];
-    let error_rate = [0.0001, 0.0005, 0.001, 0.003, 0.005, 0.007, 0.01];
+    let distance = [3, 5, 7, 9, 11];
+    let error_rate = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08];
     let seed = 1;
 
     let loop_time = distance.len() * error_rate.len();
