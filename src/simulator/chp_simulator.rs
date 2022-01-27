@@ -103,7 +103,7 @@ impl CHPSimulatorCore {
             + g_sum;
 
         match checker % 4 {
-            2 => temp[self.qubit_num * 2] = 1,
+            2 | -2 => temp[self.qubit_num * 2] = 1,
             0 => temp[self.qubit_num * 2] = 0,
             _ => panic!("Error at row_sum"),
         }
@@ -304,6 +304,8 @@ impl SimulatorCore for CHPSimulatorCore {
     fn measurement_and_reset(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f32) {
         let measurement_error = self.measurement(a, register, error_rate);
         if (register.get() == 1) && !measurement_error {
+            self.x(a);
+        } else if (register.get() == 0) && measurement_error {
             self.x(a);
         }
     }
