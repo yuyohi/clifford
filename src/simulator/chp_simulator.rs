@@ -122,7 +122,7 @@ impl SimulatorCore for CHPSimulatorCore {
         ));
 
         // rを計算
-        let buf = &x_a & &z_b & (&x_b ^ &z_a ^ 1);
+        let buf = &x_a * &z_b * (&x_b ^ &z_a ^ 1);
         r ^= &buf;
 
         // xを計算
@@ -316,7 +316,7 @@ impl SimulatorCore for CHPSimulatorCore {
             // insert noise
             match self.rng.gen::<f32>() {
                 x if (0.0..1.0 / 3.0).contains(&x) => {
-                    self.z(a);
+                    // self.z(a);
                     if cfg!(debug_assertions) {
                         println!("z error: {}", a)
                     }
@@ -329,8 +329,8 @@ impl SimulatorCore for CHPSimulatorCore {
                 } // X error
                 x if (2.0 / 3.0..1.0).contains(&x) => {
                     // Y error
-                    self.x(a);
-                    self.z(a);
+                    // self.x(a);
+                    // self.z(a);
                     if cfg!(debug_assertions) {
                         println!("y error: {}", a)
                     }
@@ -422,7 +422,7 @@ impl SimulatorInterface for CHPSimulator {
                 Operation::X(a) => core.x(*a),
                 Operation::Z(a) => core.z(*a),
             }
-            // println!("{:?}", op);
+            //println!("{:?}", op);
         }
     }
 }
