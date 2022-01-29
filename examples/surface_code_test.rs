@@ -3,10 +3,10 @@ use clifford::qubit_network::ErrorDistribution;
 use colored::*;
 
 fn main() {
-    let loop_num = 10000;
+    let loop_num: u64 = 10000;
     let distance = 5;
     let seed = 10;
-    let (mean, std_dev) = (0.01, 0.005);
+    let (mean, std_dev) = (0.06, 0.005);
     let distribution = ErrorDistribution::TruncNormal {
         mean,
         std_dev,
@@ -22,6 +22,16 @@ fn main() {
     let mut abnormal = 0;
 
     for i in 0..loop_num {
+        /* 
+        let distribution = ErrorDistribution::TruncNormal {
+            mean,
+            std_dev,
+            seed: i,
+        };
+        let mut code = RotatedSurfaceCode::new(distance, distance, distribution, 0.01, seed);
+
+        code.initialize();
+        code.syndrome_measurement(); */
         code.reset();
         code.run();
         code.decode_mwpm(distance);
@@ -38,7 +48,7 @@ fn main() {
         println!("ans = {}, loop {}", ans, i);
         if ans != 0 {
             println!("{}", "#########################################################################################\nerror\n#########################################################################################".red());
-            // break;
+            break;
         }
         println!("");
     }

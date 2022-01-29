@@ -4,7 +4,7 @@ use indicatif::ProgressBar;
 
 fn main() {
     let loop_num = 10000;
-    let distance = [3, 5, 7, 9, 11];
+    let distance = [5, 7];
     let error_rate = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08];
     let std_dev = 0.005;
     let seed = 1;
@@ -28,7 +28,7 @@ fn main() {
                     std_dev,
                     seed: i,
                 };
-                let mut code = RotatedSurfaceCode::new(d, d, distribution, p, seed);
+                let mut code = RotatedSurfaceCode::new(d, d, distribution, p, i);
 
                 code.initialize();
                 code.syndrome_measurement();
