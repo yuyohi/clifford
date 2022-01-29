@@ -7,7 +7,7 @@ use crate::decoder::mwpm;
 use crate::noise::noise_model::NoiseType;
 use crate::qec_code::stabilizer::Stabilizer;
 use crate::qubit_graph::ungraph::UnGraph;
-use crate::qubit_network::QubitNetwork;
+use crate::qubit_network::{ErrorDistribution, QubitNetwork};
 use crate::simulator::{frame::PauliFrame, Type};
 
 pub struct RotatedSurfaceCode {
@@ -22,12 +22,18 @@ pub struct RotatedSurfaceCode {
     measurement_graph_x: UnGraph,
     single_round_measurement_graph_z: UnGraph,
     pauli_frame: PauliFrame,
-    error_rate: f32,
-    measurement_error_rate: f32,
+    error_rate_mean: f64,
+    measurement_error_rate: f64,
 }
 
 impl RotatedSurfaceCode {
-    pub fn new(distance: usize, round: usize, p: f32, p_m: f32, seed: u64) -> Self {
+    pub fn new(
+        distance: usize,
+        round: usize,
+        qubit_distribution: ErrorDistribution,
+        p_m: f64,
+        seed: u64,
+    ) -> Self {
         if distance % 2 == 0 {
             panic!("distance must be odd number.");
         }
@@ -54,22 +60,45 @@ impl RotatedSurfaceCode {
         }
 
         // qubit networkの作成
+        let p_mean = qubit_distribution.mean();
         let network = QubitNetwork::new_rotated_planer_lattice_from_vec(
             data_qubit.clone(),
             measurement_qubit_z.clone(),
             measurement_qubit_x.clone(),
-            p,
+            qubit_distribution,
+            p_mean,
             Type::CHPSimulator,
             seed,
         );
 
         // make syndrome graph
-        let measurement_graph_z =
-            Self::gen_measurement_graph(&measurement_qubit_z, round, distance, 'Z', p, seed);
-        let measurement_graph_x =
-            Self::gen_measurement_graph(&measurement_qubit_x, round, distance, 'X', p, seed);
-        let single_round_measurement_graph_z =
-            Self::gen_measurement_graph(&measurement_qubit_z, 1, distance, 'Z', p, seed);
+        let measurement_graph_z = Self::gen_measurement_graph(
+            &network,
+            &measurement_qubit_z,
+            round,
+            distance,
+            'Z',
+            p_mean,
+            seed,
+        );
+        let measurement_graph_x = Self::gen_measurement_graph(
+            &network,
+            &measurement_qubit_x,
+            round,
+            distance,
+            'X',
+            p_mean,
+            seed,
+        );
+        let single_round_measurement_graph_z = Self::gen_measurement_graph(
+            &network,
+            &measurement_qubit_z,
+            1,
+            distance,
+            'Z',
+            p_mean,
+            seed,
+        );
 
         // make pauli frame
         let pauli_frame = PauliFrame::new_rotated_surface_code(distance);
@@ -95,7 +124,7 @@ impl RotatedSurfaceCode {
             measurement_graph_x,
             single_round_measurement_graph_z,
             pauli_frame,
-            error_rate: p,
+            error_rate_mean: p_mean,
             measurement_error_rate: p_m,
         }
     }
@@ -177,14 +206,15 @@ impl RotatedSurfaceCode {
 
     /// generate measurement graph
     fn gen_measurement_graph(
+        qubit_network: &QubitNetwork,
         measurement_qubit: &Vec<(i32, i32)>,
         round: usize,
         distance: usize,
         mode: char,
-        p: f32,
+        p_mean: f64,
         seed: u64,
     ) -> UnGraph {
-        let mut network = if round == 1 {
+        let mut graph = if round == 1 {
             UnGraph::new(0, seed)
         } else {
             UnGraph::new(round, seed)
@@ -263,33 +293,37 @@ impl RotatedSurfaceCode {
                         .tuple_windows()
                         .map(|(&(u_x, u_y), &(v_x, v_y))| ((u_x, u_y, t + 1), (v_x, v_y, t + 1)))
                         .collect();
-                    network.add_edges_from(&time_boundary_edge);
-                    network.set_edges_weight(&time_boundary_edge, 0.0);
+                    graph.add_edges_from(&time_boundary_edge);
+                    graph.set_edges_weight(&time_boundary_edge, 0.0);
 
                     // 時間のboundaryと空間のboundaryを繋ぐ
                     let t_boundary_to_boundary = (
                         (measurement_qubit[0].0, measurement_qubit[0].1, t + 1),
                         (boundary_node[0].0, boundary_node[0].1, t),
                     );
-                    network.add_edge_from(&t_boundary_to_boundary);
-                    network.set_edge_weight(&t_boundary_to_boundary, p / 10.0);
+                    graph.add_edge_from(&t_boundary_to_boundary);
+                    graph.set_edge_weight(&t_boundary_to_boundary, p_mean / 10.0);
                 }
 
-                network.add_edges_from(&time_edge);
-                network.set_edges_weight(&time_edge, p);
+                graph.add_edges_from(&time_edge);
+                graph.set_edges_weight(&time_edge, p_mean);
             }
 
             for &((u_x, u_y), (v_x, v_y)) in edges.iter() {
-                network.add_edge_from(&((u_x, u_y, t), (v_x, v_y, t)));
-                network.set_edge_weight(&((u_x, u_y, t), (v_x, v_y, t)), p);
+                graph.add_edge_from(&((u_x, u_y, t), (v_x, v_y, t)));
+                let qubit_coord = ((u_x + v_x) / 2, (u_y + v_y) / 2);
+                graph.set_edge_weight(
+                    &((u_x, u_y, t), (v_x, v_y, t)),
+                    qubit_network.qubit_error_rate(&qubit_coord),
+                );
             }
 
             // 最後のround以外は次のboundary nodeとも繋ぐ(weightは0ではない)
             if t != (round as i32 - 1) {
                 for &(x, y) in boundary_node.iter() {
                     let edge = ((x, y, t), (x, y, t + 1));
-                    network.add_edge_from(&edge);
-                    network.set_edge_weight(&edge, p / 10.0);
+                    graph.add_edge_from(&edge);
+                    graph.set_edge_weight(&edge, p_mean / 10.0);
                 }
             }
 
@@ -299,26 +333,26 @@ impl RotatedSurfaceCode {
                 .tuple_windows()
                 .map(|(&u, &v)| ((u.0, u.1, t), (v.0, v.1, t)))
                 .collect();
-            network.add_edges_from(&boundary_edge);
-            network.set_edges_weight(&boundary_edge, 0.0);
+            graph.add_edges_from(&boundary_edge);
+            graph.set_edges_weight(&boundary_edge, 0.0);
 
             // boundaryかどうかとregisterを設定
             for &(x, y) in measurement_qubit.iter() {
-                network.set_is_boundary((x, y, t), false);
-                network.set_classical_register((x, y, t), Rc::new(Cell::new(0))); // 順番が大事
+                graph.set_is_boundary((x, y, t), false);
+                graph.set_classical_register((x, y, t), Rc::new(Cell::new(0))); // 順番が大事
                 if (t == (round as i32 - 1)) && (round != 1) {
                     // 最後のroundでは、時間方向のboundaryを設定
-                    network.set_is_boundary((x, y, t + 1), true);
-                    network.set_classical_register((x, y, t + 1), Rc::new(Cell::new(0)));
+                    graph.set_is_boundary((x, y, t + 1), true);
+                    graph.set_classical_register((x, y, t + 1), Rc::new(Cell::new(0)));
                 }
             }
             for &(x, y) in boundary_node.iter() {
-                network.set_is_boundary((x, y, t), true);
-                network.set_classical_register((x, y, t), Rc::new(Cell::new(0)));
+                graph.set_is_boundary((x, y, t), true);
+                graph.set_classical_register((x, y, t), Rc::new(Cell::new(0)));
             }
         }
 
-        network
+        graph
     }
 
     /// syndrome measurement
@@ -334,11 +368,10 @@ impl RotatedSurfaceCode {
             ..
         } = self;
 
-        let noise_type = NoiseType::Depolarizing(network.error_rate());
-
         for t in 0..*round as i32 {
             // 仮 現象論的ノイズ
             for c in data_qubit.iter() {
+                let noise_type = NoiseType::Depolarizing(network.qubit_error_rate(&c));
                 network.insert_noise(*c, noise_type);
             }
 
@@ -658,19 +691,5 @@ impl RotatedSurfaceCode {
 
     pub fn index_to_sim(&self) -> &HashMap<(i32, i32), usize> {
         &self.network.index_to_sim()
-    }
-}
-
-mod test {
-
-    #[test]
-    fn gen_qec_code() {
-        for distance in (3..27).step_by(2) {
-            let code = super::RotatedSurfaceCode::new(distance, distance + 2, 0.01, 0.01, 0);
-            assert_eq!(
-                distance * distance,
-                code.z_stabilizers.len() + code.z_stabilizers.len() + 1
-            )
-        }
     }
 }

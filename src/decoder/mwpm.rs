@@ -8,14 +8,14 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use retworkx_core::max_weight_matching::max_weight_matching;
+use retworkx_core::petgraph as rpet;
 use retworkx_core::Result;
-use retworkx_core::petgraph as rpet; 
 
 use hashbrown::{HashMap, HashSet};
 
 #[derive(Clone, PartialEq, Debug)]
 struct State {
-    distance: f32,
+    distance: f64,
     coord: (i32, i32, i32),
     predecessor: (i32, i32, i32),
 }
@@ -42,14 +42,14 @@ pub fn local_dijkstra(
     graph: &UnGraph,
     m: usize,
     s: &(i32, i32, i32),
-) -> Vec<(Vec<(i32, i32, i32)>, f32)> {
+) -> Vec<(Vec<(i32, i32, i32)>, f64)> {
     let mut state_list = graph
         .nodes()
         .map(|n| {
             (
                 *n,
                 State {
-                    distance: f32::MAX,
+                    distance: f64::MAX,
                     coord: *n,
                     predecessor: *n,
                 },
@@ -133,7 +133,7 @@ fn construct_syndrome_graph(
     graph: &UnGraph,
     m: usize,
 ) -> (
-    GraphMap<(i32, i32, i32), f32, Undirected>,
+    GraphMap<(i32, i32, i32), f64, Undirected>,
     HashMap<((i32, i32, i32), (i32, i32, i32)), Vec<(i32, i32, i32)>>,
 ) {
     let mut paths = Vec::new();
@@ -152,7 +152,7 @@ fn construct_syndrome_graph(
     }
 
     // construct local matching graph
-    let local_graph = UnGraphMap::<(i32, i32, i32), f32>::from_edges(&paths);
+    let local_graph = UnGraphMap::<(i32, i32, i32), f64>::from_edges(&paths);
 
     // dbg!(&local_graph);
 
@@ -160,7 +160,7 @@ fn construct_syndrome_graph(
 }
 
 fn minimum_weight_perfect_matching(
-    local_graph: GraphMap<(i32, i32, i32), f32, Undirected>,
+    local_graph: GraphMap<(i32, i32, i32), f64, Undirected>,
 ) -> Vec<((i32, i32, i32), (i32, i32, i32))> {
     let mut coord_to_index = HashMap::new();
     let mut index_to_coord = HashMap::new();
@@ -173,7 +173,7 @@ fn minimum_weight_perfect_matching(
 
     for (u, v, &w) in local_graph.all_edges() {
         let &start = coord_to_index.get(&u).unwrap();
-        let &end = coord_to_index.get(&v).unwrap(); 
+        let &end = coord_to_index.get(&v).unwrap();
 
         let weight = (w * 100000000.0) as i128;
         edges.push((start as u32, end as u32, weight));
@@ -181,7 +181,7 @@ fn minimum_weight_perfect_matching(
 
     let g = rpet::graph::UnGraph::<u32, i128>::from_edges(&edges);
 
-    /* 
+    /*
     let mut f = File::create("example.dot").unwrap();
             let output = format!("{:?}", Dot::new(&g));
             f.write_all(&output.as_bytes())
@@ -221,7 +221,7 @@ fn decide_correction_qubit(
                 .unwrap_or_else(|| panic!("edge: {:?} is not exist", (u, v)));
 
             if cfg!(debug_assertions) {
-                let weight: f32 = correction_path
+                let weight: f64 = correction_path
                     .iter()
                     .tuple_windows()
                     .map(|(&u, &v)| graph.edge_weight(&(u, v)).unwrap())

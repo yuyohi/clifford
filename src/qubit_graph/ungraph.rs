@@ -92,7 +92,7 @@ impl<'a> Iterator for Iter<'a> {
 #[derive(Debug)]
 pub struct UnGraph {
     network: HashMap<(i32, i32, i32), Vec<(i32, i32, i32)>>,
-    edge_weight: HashMap<((i32, i32, i32), (i32, i32, i32)), f32>,
+    edge_weight: HashMap<((i32, i32, i32), (i32, i32, i32)), f64>,
     node_is_boundary: HashMap<(i32, i32, i32), bool>,
     classical_register: ClassicalRegister,
     rng: rand::rngs::SmallRng,
@@ -163,7 +163,7 @@ impl UnGraph {
     }
 
     /// set all edge weight equal p
-    pub fn set_all_edge_weight(&mut self, p: f32) {
+    pub fn set_all_edge_weight(&mut self, p: f64) {
         let Self {
             network,
             edge_weight,
@@ -178,13 +178,13 @@ impl UnGraph {
     }
 
     /// set edge weight
-    pub fn set_edge_weight(&mut self, edge: &((i32, i32, i32), (i32, i32, i32)), p: f32) {
+    pub fn set_edge_weight(&mut self, edge: &((i32, i32, i32), (i32, i32, i32)), p: f64) {
         self.edge_weight.insert(*edge, p);
         self.edge_weight.insert((edge.1, edge.0), p);
     }
 
     /// set edges weight equal p
-    pub fn set_edges_weight(&mut self, edges: &[((i32, i32, i32), (i32, i32, i32))], p: f32) {
+    pub fn set_edges_weight(&mut self, edges: &[((i32, i32, i32), (i32, i32, i32))], p: f64) {
         for &(u, v) in edges.iter() {
             self.edge_weight.insert((u, v), p);
             self.edge_weight.insert((v, u), p);
@@ -248,7 +248,7 @@ impl UnGraph {
     }
 
     /// return edge weight
-    pub fn edge_weight(&self, edge: &((i32, i32, i32), (i32, i32, i32))) -> Option<f32> {
+    pub fn edge_weight(&self, edge: &((i32, i32, i32), (i32, i32, i32))) -> Option<f64> {
         self.edge_weight.get(edge).cloned()
     }
 

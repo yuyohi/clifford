@@ -25,7 +25,7 @@ pub trait SimulatorInterface {
     fn add_z(&mut self, a: usize);
 
     /// add measurement
-    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32);
+    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f64);
 
     // add measurement as once
     //fn add_measurement_at_once(&mut self, a: Vec<usize>, register: &mut Array3<u8>);
@@ -34,7 +34,7 @@ pub trait SimulatorInterface {
     fn add_measurement_to_zero(&mut self, a: usize);
 
     /// add measurement_and_reset
-    fn add_measurement_and_reset(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32);
+    fn add_measurement_and_reset(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f64);
 
     /// add noise
     fn add_noise(&mut self, a: usize, noise_type: NoiseType);
@@ -46,7 +46,7 @@ pub trait SimulatorInterface {
     fn run(&mut self);
 
     /// direct measurement
-    fn measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32);
+    fn measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f64);
 
 }
 
@@ -85,7 +85,7 @@ impl SimulatorInterface for SimulatorWrapper {
         };
     }
 
-    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f64) {
         match *self {
             SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_measurement(a, register, error_rate),
         }
@@ -97,13 +97,13 @@ impl SimulatorInterface for SimulatorWrapper {
         }
     }
 
-    fn add_measurement_and_reset(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+    fn add_measurement_and_reset(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f64) {
         match *self {
             SimulatorWrapper::CHPSimulator(ref mut sim) => sim.add_measurement_and_reset(a, register, error_rate),
         }
     }
 
-    fn measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+    fn measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f64) {
         match *self {
             SimulatorWrapper::CHPSimulator(ref mut sim) => sim.measurement(a, register, error_rate),
         }
@@ -135,10 +135,10 @@ pub enum Operation {
     S(usize),
     X(usize),
     Z(usize),
-    M(usize, Rc<Cell<u8>>, f32),
-    MR(usize, Rc<Cell<u8>>, f32),
+    M(usize, Rc<Cell<u8>>, f64),
+    MR(usize, Rc<Cell<u8>>, f64),
     MToZero(usize),
-    Depolarizing(usize, f32),
+    Depolarizing(usize, f64),
     //MAll(char)
 }
 

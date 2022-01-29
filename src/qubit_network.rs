@@ -1,19 +1,20 @@
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::distributions::Distribution;
+use rand::{rngs::SmallRng, SeedableRng};
+use statrs::distribution::Normal;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::simulator::{self, SimulatorInterface, SimulatorWrapper, Type};
 use crate::noise::noise_model::NoiseType;
+use crate::simulator::{self, SimulatorInterface, SimulatorWrapper, Type};
 
 pub struct QubitNetwork {
     network: HashMap<(i32, i32), Vec<(i32, i32)>>,
-    bit_error_map: HashMap<(i32, i32), f32>,
-    connection_error_map: HashMap<((i32, i32), (i32, i32)), f32>,
+    bit_error_map: HashMap<(i32, i32), f64>,
+    connection_error_map: HashMap<((i32, i32), (i32, i32)), f64>,
     index_to_sim: HashMap<(i32, i32), usize>,
     sim: SimulatorWrapper,
-    rng: rand::rngs::SmallRng,
-    error_rate: f32,
+    error_rate: f64,
 }
 
 impl QubitNetwork {
@@ -21,7 +22,8 @@ impl QubitNetwork {
     pub fn new_rotated_planer_lattice_from_rectangle(
         vertical: usize,
         horizontal: usize,
-        p: f32,
+        p: f64,
+        qubit_distribution: ErrorDistribution,
         sim_type: simulator::Type,
         seed: u64,
     ) -> Self {
@@ -40,7 +42,7 @@ impl QubitNetwork {
             }
         }
 
-        Self::new_rotated_planer_lattice(qubit_index, p, sim_type, seed)
+        Self::new_rotated_planer_lattice(qubit_index, qubit_distribution, p, sim_type, seed)
     }
 
     /// 受け取ったvecを元にrotated surface codeに適したlatticeを作成する
@@ -48,7 +50,8 @@ impl QubitNetwork {
         data_qubit: Vec<(i32, i32)>,
         measurement_qubit_z: Vec<(i32, i32)>,
         measurement_qubit_x: Vec<(i32, i32)>,
-        p: f32,
+        qubit_distribution: ErrorDistribution,
+        p: f64,
         sim_type: simulator::Type,
         seed: u64,
     ) -> Self {
@@ -57,13 +60,14 @@ impl QubitNetwork {
         qubit_index.extend(measurement_qubit_z);
         qubit_index.extend(measurement_qubit_x);
 
-        Self::new_rotated_planer_lattice(qubit_index, p, sim_type, seed)
+        Self::new_rotated_planer_lattice(qubit_index, qubit_distribution, p, sim_type, seed)
     }
 
     /// gen rotated_surface_lattice
     fn new_rotated_planer_lattice(
         qubit_index: Vec<(i32, i32)>,
-        p: f32,
+        qubit_distribution: ErrorDistribution,
+        p: f64,
         sim_type: simulator::Type,
         seed: u64,
     ) -> Self {
@@ -84,8 +88,9 @@ impl QubitNetwork {
 
         // qubitのerror rate dictを作成
         let mut bit_error_map = HashMap::new();
+        let mut generator = qubit_distribution.generator();
         for &qubit in qubit_index.iter() {
-            bit_error_map.insert(qubit, p);
+            bit_error_map.insert(qubit, generator.gen());
         }
         // connectionのerror rate dictを作成
         let mut connection_error_map = HashMap::new();
@@ -96,9 +101,7 @@ impl QubitNetwork {
         }
 
         // simulatorを生成
-        // 乱数発生器は仮
-        let mut rng = SmallRng::seed_from_u64(seed);
-        let mut rng_sim = SmallRng::seed_from_u64(seed + 1);
+        let rng_sim = SmallRng::seed_from_u64(seed + 1);
 
         let sim = match sim_type {
             Type::CHPSimulator => simulator::SimulatorWrapper::CHPSimulator(
@@ -116,25 +119,21 @@ impl QubitNetwork {
             connection_error_map,
             index_to_sim,
             sim,
-            rng,
             error_rate: p,
         }
     }
 
     /// 指定したqubitのerror rateを返す
-    pub fn qubit_error_rate(&self, index: (i32, i32)) -> f32 {
-        let p = self
-            .bit_error_map
-            .get(&index)
-            .expect("index does not exist");
+    pub fn qubit_error_rate(&self, index: &(i32, i32)) -> f64 {
+        let p = self.bit_error_map.get(index).unwrap_or_else(|| panic!("index does not exist: {:?}", index));
         p.clone()
     }
 
     /// 指定したconnectionのerror rateを返す
-    pub fn connection_error_rate(&self, index: ((i32, i32), (i32, i32))) -> f32 {
+    pub fn connection_error_rate(&self, index: &((i32, i32), (i32, i32))) -> f64 {
         let p = self
             .connection_error_map
-            .get(&index)
+            .get(index)
             .expect("index does not exist");
         p.clone()
     }
@@ -174,7 +173,7 @@ impl QubitNetwork {
     }
 
     /// measurement
-    pub fn measurement(&mut self, a: (i32, i32), register: Rc<Cell<u8>>, error_rate: f32) {
+    pub fn measurement(&mut self, a: (i32, i32), register: Rc<Cell<u8>>, error_rate: f64) {
         self.sim.add_measurement(
             *self.index_to_sim.get(&a).expect("index does not exist"),
             register,
@@ -183,7 +182,7 @@ impl QubitNetwork {
     }
 
     ///measurement direct
-    pub fn measurement_direct(&mut self, a: (i32, i32), register: Rc<Cell<u8>>, error_rate: f32) {
+    pub fn measurement_direct(&mut self, a: (i32, i32), register: Rc<Cell<u8>>, error_rate: f64) {
         self.sim.measurement(
             *self.index_to_sim.get(&a).expect("index does not exist"),
             register,
@@ -198,7 +197,12 @@ impl QubitNetwork {
     }
 
     /// measurement and reset
-    pub fn measurement_and_reset(&mut self, a: (i32, i32), register: Rc<Cell<u8>>, error_rate: f32) {
+    pub fn measurement_and_reset(
+        &mut self,
+        a: (i32, i32),
+        register: Rc<Cell<u8>>,
+        error_rate: f64,
+    ) {
         self.sim.add_measurement_and_reset(
             *self.index_to_sim.get(&a).expect("index does not exist"),
             register,
@@ -207,8 +211,10 @@ impl QubitNetwork {
     }
 
     pub fn insert_noise(&mut self, a: (i32, i32), noise_type: NoiseType) {
-        self.sim
-            .add_noise(*self.index_to_sim.get(&a).expect("index does not exist"), noise_type)
+        self.sim.add_noise(
+            *self.index_to_sim.get(&a).expect("index does not exist"),
+            noise_type,
+        )
     }
 
     /// 指定された座標がネットワークに存在するかを判定する
@@ -227,12 +233,63 @@ impl QubitNetwork {
     }
 
     /// return error rate
-    pub fn error_rate(&self) -> f32 {
+    pub fn error_rate(&self) -> f64 {
         self.error_rate
     }
 
     /// reset tableau
     pub fn reset(&mut self) {
         self.sim.reset();
+    }
+}
+
+pub enum ErrorDistribution {
+    Equal(f64),
+    TruncNormal { mean: f64, std_dev: f64, seed: u64 },
+}
+
+impl ErrorDistribution {
+    pub fn mean(&self) -> f64 {
+        match self {
+            Self::Equal(p) => *p,
+            Self::TruncNormal { mean, .. } => *mean,
+        }
+    }
+
+    /// return rng generator
+    pub fn generator(&self) -> Generator {
+        match self {
+            Self::Equal(p) => Generator::Equal(*p),
+            Self::TruncNormal {
+                mean,
+                std_dev,
+                seed,
+            } => {
+                let distribution = Normal::new(*mean, *std_dev).unwrap();
+                let rng = SmallRng::seed_from_u64(*seed);
+                Generator::TruncNormal { distribution, rng }
+            }
+        }
+    }
+}
+
+pub enum Generator {
+    Equal(f64),
+    TruncNormal { distribution: Normal, rng: SmallRng },
+}
+
+impl Generator {
+    pub fn gen(&mut self) -> f64 {
+        match self {
+            Self::Equal(p) => *p,
+            Self::TruncNormal { distribution, rng } => {
+                let mut p = distribution.sample(rng);
+                while p < 0.0 || 1.0 <= p {
+                    // pが0以上1未満ではないといきは再生成
+                    p = distribution.sample(rng);
+                }
+                p
+            }
+        }
     }
 }

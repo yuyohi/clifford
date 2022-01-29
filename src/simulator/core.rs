@@ -27,18 +27,18 @@ pub trait SimulatorCore {
 
     /// measurement
     /// if measurement error occurs return true, otherwise return false 
-    fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f32) -> bool;
+    fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f64) -> bool;
 
     fn measurement_to_zero(&mut self, a: usize);
 
     /// measurement and reset
-    fn measurement_and_reset(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f32);
+    fn measurement_and_reset(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f64);
 
     ///reset
     fn reset(&mut self);
 
     /// depolarizing noise channel
-    fn depolarizing(&mut self, a: usize, p: f32);
+    fn depolarizing(&mut self, a: usize, p: f64);
 }
 
 impl Dispatcher {

@@ -1,11 +1,19 @@
 use clifford::qec_code::rotated_surface_code::RotatedSurfaceCode;
+use clifford::qubit_network::ErrorDistribution;
 use colored::*;
 
 fn main() {
     let loop_num = 10000;
     let distance = 5;
     let seed = 10;
-    let mut code = RotatedSurfaceCode::new(distance, distance, 0.01, 0.01, seed);
+    let (mean, std_dev) = (0.01, 0.005);
+    let distribution = ErrorDistribution::TruncNormal {
+        mean,
+        std_dev,
+        seed,
+    };
+    // let distribution = ErrorDistribution::Equal(0.01);
+    let mut code = RotatedSurfaceCode::new(distance, distance, distribution, 0.01, seed);
 
     code.initialize();
     code.syndrome_measurement();

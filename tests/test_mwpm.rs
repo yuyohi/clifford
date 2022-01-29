@@ -19,9 +19,9 @@ fn test_local_dijkstra() {
     ];
     let mut graph = UnGraph::from_edges(&v, 1, 0);
     for (i, edge) in v.iter().enumerate() {
-        graph.set_edge_weight(edge, i as f32);
+        graph.set_edge_weight(edge, i as f64);
     }
-    graph.set_edge_weight(&((5, 5, 0), (4, 4, 0)), 1 as f32);
+    graph.set_edge_weight(&((5, 5, 0), (4, 4, 0)), 1 as f64);
     for i in 1..11 {
         graph.set_classical_register((i, i, 0), Rc::new(Cell::new(1)));
     }

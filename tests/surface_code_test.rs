@@ -1,12 +1,19 @@
 use clifford::qec_code::rotated_surface_code::RotatedSurfaceCode;
+use clifford::qubit_network::ErrorDistribution;
 
 #[test]
 fn gen_qec_code() {
     let distance = 3;
     let seed = 10;
-    let mut code = RotatedSurfaceCode::new(distance, distance + 1, 0.0,0.0, seed);
+    let (mean, std_dev) = (0.09, 0.005);
+    let distribution = ErrorDistribution::TruncNormal {
+        mean,
+        std_dev,
+        seed,
+    };
+    let mut code = RotatedSurfaceCode::new(distance, distance + 1, distribution, 0.0, seed);
 
-    for _ in 0..100{
+    for _ in 0..100 {
         code.reset();
         code.initialize();
         code.syndrome_measurement();
@@ -23,13 +30,19 @@ fn gen_qec_code() {
         let row_sum: Vec<u8> = result_vec
             .clone()
             .into_iter()
-            .reduce(|row_a, row_b| row_a.iter().zip(row_b.iter()).map(|(&a, &b)| a + b).collect())
+            .reduce(|row_a, row_b| {
+                row_a
+                    .iter()
+                    .zip(row_b.iter())
+                    .map(|(&a, &b)| a + b)
+                    .collect()
+            })
             .unwrap();
 
         //println!("row_sum: {:?}", row_sum);
 
         //for row in result_vec.iter() {
-            //println!("{:?}", row);
+        //println!("{:?}", row);
         //}
 
         for value in row_sum {
@@ -45,7 +58,13 @@ fn gen_qec_code() {
 fn test_syndrome() {
     let distance = 17;
     let seed = 10;
-    let mut code = RotatedSurfaceCode::new(distance, distance + 1, 0.01, 0.01, seed);
+    let (mean, std_dev) = (0.09, 0.005);
+    let distribution = ErrorDistribution::TruncNormal {
+        mean,
+        std_dev,
+        seed,
+    };
+    let mut code = RotatedSurfaceCode::new(distance, distance + 1, distribution, 0.01, seed);
 
     code.initialize();
 
@@ -58,11 +77,17 @@ fn test_syndrome() {
 fn test_decode_scheme() {
     let distance = 3;
     let seed = 10;
-    let mut code = RotatedSurfaceCode::new(distance, distance + 1, 0.01,0.01,  seed);
+    let (mean, std_dev) = (0.09, 0.005);
+    let distribution = ErrorDistribution::TruncNormal {
+        mean,
+        std_dev,
+        seed,
+    };
+    let mut code = RotatedSurfaceCode::new(distance, distance + 1, distribution, 0.01, seed);
 
     code.initialize();
     code.run();
-    
+
     code.decode_mwpm(distance);
     let ans = code.logical_value();
 

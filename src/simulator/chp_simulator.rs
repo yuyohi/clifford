@@ -179,7 +179,7 @@ impl SimulatorCore for CHPSimulatorCore {
     }
 
     /// measurement
-    fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f32) -> bool {
+    fn measurement(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f64) -> bool {
         let p = self
             .stabilizer_tableau
             .slice(s![self.qubit_num.., a])
@@ -215,7 +215,7 @@ impl SimulatorCore for CHPSimulatorCore {
             q[self.qubit_num + a] = 1;
 
             // rpを1/2でセットし、これが観測結果となる
-            if self.rng.gen::<f32>() < 0.5 {
+            if self.rng.gen::<f64>() < 0.5 {
                 self.stabilizer_tableau[[p[0], self.qubit_num * 2]] = 1;
             } else {
                 self.stabilizer_tableau[[p[0], self.qubit_num * 2]] = 0;
@@ -238,7 +238,7 @@ impl SimulatorCore for CHPSimulatorCore {
             register.set(temp[self.qubit_num * 2]);
         }
 
-        if self.rng.gen::<f32>() < error_rate {
+        if self.rng.gen::<f64>() < error_rate {
             register.set(register.get() ^ 1);
             if cfg!(debug_assertions) {
                 println!("measurement error: {}", a);
@@ -301,7 +301,7 @@ impl SimulatorCore for CHPSimulatorCore {
     }
 
     /// measurement and reset
-    fn measurement_and_reset(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f32) {
+    fn measurement_and_reset(&mut self, a: usize, register: &Rc<Cell<u8>>, error_rate: f64) {
         let measurement_error = self.measurement(a, register, error_rate);
         if (register.get() == 1) && !measurement_error {
             self.x(a);
@@ -311,10 +311,10 @@ impl SimulatorCore for CHPSimulatorCore {
     }
 
     /// insert depolarizing noise
-    fn depolarizing(&mut self, a: usize, p: f32) {
-        if self.rng.gen::<f32>() < p {
+    fn depolarizing(&mut self, a: usize, p: f64) {
+        if self.rng.gen::<f64>() < p {
             // insert noise
-            match self.rng.gen::<f32>() {
+            match self.rng.gen::<f64>() {
                 x if (0.0..1.0 / 3.0).contains(&x) => {
                     // self.z(a);
                     if cfg!(debug_assertions) {
@@ -373,7 +373,7 @@ impl SimulatorInterface for CHPSimulator {
     }
 
     /// add measurement
-    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+    fn add_measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f64) {
         self.dispatcher.push(Operation::M(a, register, error_rate));
     }
 
@@ -382,7 +382,7 @@ impl SimulatorInterface for CHPSimulator {
     }
 
     /// add measurement_and_reset
-    fn add_measurement_and_reset(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+    fn add_measurement_and_reset(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f64) {
         self.dispatcher.push(Operation::MR(a, register, error_rate));
     }
 
@@ -398,7 +398,7 @@ impl SimulatorInterface for CHPSimulator {
     }
 
     /// measurement direct
-    fn measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f32) {
+    fn measurement(&mut self, a: usize, register: Rc<Cell<u8>>, error_rate: f64) {
         self.core.measurement(a, &register, error_rate);
     }
 
