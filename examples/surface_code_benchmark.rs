@@ -1,10 +1,12 @@
 use clifford::qec_code::rotated_surface_code::RotatedSurfaceCode;
+use clifford::qubit_network::ErrorDistribution;
 use indicatif::ProgressBar;
 
 fn main() {
     let loop_num = 10000;
     let distance = [3, 5, 7, 9, 11];
     let error_rate = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08];
+    let std_dev = 0.005;
     let seed = 1;
 
     let loop_time = distance.len() * error_rate.len();
@@ -16,17 +18,20 @@ fn main() {
         for &p in error_rate.iter() {
             println!("Progress {}/{}", count, loop_time);
 
-            let mut code = RotatedSurfaceCode::new(d, d, p, p, seed);
-
-            code.initialize();
-            code.syndrome_measurement();
-
             let mut error_num = 0;
 
             let bar = ProgressBar::new(loop_num);
 
-            for _ in 0..loop_num {
-                code.reset();
+            for i in 0..loop_num {
+                let distribution = ErrorDistribution::TruncNormal {
+                    mean: p,
+                    std_dev,
+                    seed: i,
+                };
+                let mut code = RotatedSurfaceCode::new(d, d, distribution, p, seed);
+
+                code.initialize();
+                code.syndrome_measurement();
                 code.run();
                 code.decode_mwpm(d);
 
